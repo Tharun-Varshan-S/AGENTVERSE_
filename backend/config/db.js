@@ -4,15 +4,33 @@ require('dotenv').config();
 const store = new Map();
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/civic_complaint_db';
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    console.error("[MongoDB Error] MONGODB_URI is not defined in environment variables.");
+    process.exit(1);
+  }
 
   try {
-    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 2000 });
+    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
     console.log(`[MongoDB] Connected successfully to MongoDB server: ${conn.connection.host}`);
+    console.log(`[MongoDB] Connected to database: ${conn.connection.name}`);
     return conn;
   } catch (err) {
-    console.log(`[MongoDB] Live MongoDB server at ${uri} unavailable (${err.message}).`);
-    console.log(`[MongoDB] Switched to Stage 1-5 in-memory database emulation mode.`);
+    console.error(`\n=====================================================================`);
+    console.error(`[MongoDB Error] COULD NOT CONNECT TO PERSISTENT MONGO DB INSTANCE!`);
+    console.error(`[MongoDB Error] URI: ${uri}`);
+    console.error(`[MongoDB Error] Reason: ${err.message}`);
+    console.error(`=====================================================================\n`);
+
+    const allowFallback = process.env.ALLOW_INMEMORY_FALLBACK === 'true';
+
+    if (!allowFallback) {
+      console.error(`[MongoDB Fatal] Persistent database connection required. Exiting process...`);
+      process.exit(1);
+    }
+
+    console.warn(`[MongoDB Warning] ALLOW_INMEMORY_FALLBACK=true detected in environment.`);
+    console.warn(`[MongoDB Warning] Switched to Stage 1-5 in-memory database emulation mode.`);
 
     // Fallback overrides for offline execution
     mongoose.Model.prototype.save = async function() {

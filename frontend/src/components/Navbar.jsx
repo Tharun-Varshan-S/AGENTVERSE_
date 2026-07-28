@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import Logo from './Logo';
 
 const Navbar = () => {
   const location = useLocation();
@@ -15,17 +16,8 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         
         {/* Far Left: Logo & Site Name */}
-        <Link to="/" className="flex items-center space-x-2.5 group shrink-0">
-          <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform duration-200 shadow-sm">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <div>
-            <span className="font-extrabold text-xl text-[#0A0A0A] tracking-tight block leading-none">
-              CivicResolve AI
-            </span>
-          </div>
+        <Link to="/">
+          <Logo />
         </Link>
 
         {/* Center: Floating Capsule Navigation Pill (Desktop) */}
