@@ -4,10 +4,12 @@
   "description": "Civic Complaint-to-Resolution System - Backend Core",
   "main": "testPipeline.js",
   "scripts": {
+    "start": "node server.js",
     "test": "node testPipeline.js",
     "seed": "node seed/seedDepartments.js"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
