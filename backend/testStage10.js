@@ -98,6 +98,15 @@ async function testStage10() {
     console.log("✅ Pipeline runEscalation successfully updated incident status to 'escalated'!");
   }
 
+  // Step 4: Test Double-Escalation Guard
+  console.log("\n--- 4. Testing Double-Escalation Guard ---");
+  console.log(`Triggering runEscalation second time on ${incident.incident_id}...`);
+  const reEscalatedIncident = await runEscalation(incident.incident_id);
+
+  if (reEscalatedIncident.status === "escalated" && reEscalatedIncident.escalation.escalated_at === escalatedIncident.escalation.escalated_at) {
+    console.log("✅ Double-escalation guard verified: Incident returned unchanged without duplicate execution!");
+  }
+
   await disconnectDB();
 
   console.log("\n=====================================================================");
