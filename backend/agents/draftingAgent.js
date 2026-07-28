@@ -1,8 +1,45 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } = require('@langchain/core/prompts');
+const { z } = require('zod');
+
+// 1. Zod Schema for Structured Output
+const DraftOutputSchema = z.object({
+  complaint_text: z.string().min(20)
+    .describe("The formal municipal complaint letter following official governance structure")
+});
+
 /**
- * 1. Validate & extract relevant input data from the Incident object.
+ * 2. LangChain ChatPromptTemplate definition with SystemMessage & HumanMessage templates.
+ * Enforces structured generation of formal government complaint notices.
+ */
+const draftingPromptTemplate = ChatPromptTemplate.fromMessages([
+  SystemMessagePromptTemplate.fromTemplate(
+    `You are a formal civic complaint documentation writer for municipal governance.
+Generate an official municipal complaint letter based strictly on the provided incident data.
+
+Instructions:
+- The letter must follow formal government format (To Department Head, Subject, Formal Incident Details, SLA Expectations, Resolution Request).
+- Maintain professional tone.
+- Do NOT hallucinate fake officer names, specific dates, or fake signatures.`
+  ),
+  HumanMessagePromptTemplate.fromTemplate(
+    `INCIDENT DATA:
+- Reference Number: {referenceNumber}
+- Incident ID: {incidentId}
+- Issue Category: {category}
+- Description: {description}
+- Location Address: {address}
+- Target Department: {department}
+- Priority Severity: {severity}
+- SLA Target: {slaHours} Hours`
+  )
+]);
+
+/**
+ * 3. Validate & extract relevant input data from the Incident object.
  */
 function validateInput(incident = {}) {
   const incidentId = incident.incident_id || (incident._id ? incident._id.toString() : "INC-TEMP");
@@ -32,8 +69,7 @@ function validateInput(incident = {}) {
 }
 
 /**
- * 2. Generate a deterministic, unique backend reference number.
- *    (e.g., REF-2026-INC-A1B2C3D4 or REF-2026-94832)
+ * 4. Generate a deterministic, unique backend reference number.
  */
 function generateReferenceNumber(incidentId) {
   const year = new Date().getFullYear();
@@ -42,80 +78,7 @@ function generateReferenceNumber(incidentId) {
 }
 
 /**
- * 3. Build prompt for Gemini LLM.
- */
-function buildPrompt(data, referenceNumber) {
-  return `You are a formal civic complaint documentation writer for municipal governance.
-Generate a formal municipal complaint letter based strictly on the provided incident data.
-
-DATA SUPPLIED:
-- Reference Number: ${referenceNumber}
-- Incident ID: ${data.incidentId}
-- Issue Category: ${data.category}
-- Incident Description: ${data.description}
-- Location Address: ${data.address}
-- Target Department: ${data.department}
-- Priority Severity: ${data.severity}
-- Service Level Agreement (SLA): ${data.slaHours} Hours
-
-INSTRUCTIONS:
-- Return EXCLUSIVELY a raw JSON object with a single key "complaint_text".
-- Do NOT include any markdown code fences (no \`\`\`json), explanations, preamble, or postscript.
-- The letter must follow formal government format (To Department Head, Subject, Formal Incident Details, SLA Expectations, Resolution Request).
-- Do NOT hallucinate fake officer names, specific dates, or fake signatures.
-
-OUTPUT JSON FORMAT:
-{
-  "complaint_text": "To\\nThe Department Head...\\n..."
-}`;
-}
-
-/**
- * Call Gemini API via @google/genai SDK or REST API fallback.
- */
-async function callGeminiAPI(promptText, apiKey) {
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-  try {
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: promptText
-    });
-    return response.text;
-  } catch (sdkError) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }]
-      })
-    });
-    if (!res.ok) {
-      throw new Error(`Gemini REST API error: ${res.statusText}`);
-    }
-    const data = await res.json();
-    return data.candidates[0].content.parts[0].text;
-  }
-}
-
-/**
- * 4. Parse response text into structured JSON.
- */
-function parseGeminiResponse(responseText) {
-  if (!responseText) throw new Error("Empty response from LLM");
-  let cleaned = responseText.trim();
-  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const parsed = JSON.parse(cleaned);
-  if (!parsed || typeof parsed.complaint_text !== 'string' || !parsed.complaint_text.trim()) {
-    throw new Error("Parsed JSON missing valid 'complaint_text' string");
-  }
-  return parsed.complaint_text.trim();
-}
-
-/**
- * 5. Build high-quality fallback complaint letter template if Gemini is unavailable or fails.
+ * 5. High-quality fallback template builder if LLM API is unavailable.
  */
 function buildFallbackDraft(data, referenceNumber) {
   return `OFFICIAL MUNICIPAL CIVIC COMPLAINT NOTICE
@@ -142,21 +105,11 @@ Issued by: AGENTVERSE Autonomous Civic Management System`;
 }
 
 /**
- * 6. Validate constructed Draft object against system requirements.
- */
-function validateDraft(draft) {
-  if (!draft || typeof draft !== 'object') return false;
-  if (typeof draft.complaint_text !== 'string' || !draft.complaint_text.trim()) return false;
-  if (typeof draft.reference_number !== 'string' || !draft.reference_number.trim()) return false;
-  if (draft.format !== 'letter' && draft.format !== 'pdf_url') return false;
-  return true;
-}
-
-/**
  * Main Drafting Agent Entry Point (Agent 3).
  * Receives the routed Incident object, generates formal notice & reference number.
  */
 async function draftingAgent(incident) {
+  console.log("[DraftingAgent] Starting document generation...");
   const data = validateInput(incident);
   const referenceNumber = generateReferenceNumber(data.incidentId);
 
@@ -164,22 +117,51 @@ async function draftingAgent(incident) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (apiKey && apiKey.trim()) {
-    const promptText = buildPrompt(data, referenceNumber);
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const responseText = await callGeminiAPI(promptText, apiKey);
-        complaintText = parseGeminiResponse(responseText);
-        break; // Successfully generated and parsed
-      } catch (err) {
-        console.warn(`[DraftingAgent] Gemini attempt ${attempt} failed: ${err.message}`);
+    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    try {
+      // LangChain Chat Model initialization
+      const model = new ChatGoogleGenerativeAI({
+        apiKey,
+        modelName,
+        temperature: 0.2
+      });
+
+      // Runnable LCEL Pipeline with Zod Structured Output
+      const structuredModel = model.withStructuredOutput(DraftOutputSchema);
+      const runnablePipeline = draftingPromptTemplate.pipe(structuredModel);
+
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          console.log(`[DraftingAgent] Invoking LangChain LCEL pipeline (Attempt ${attempt})...`);
+          const result = await runnablePipeline.invoke({
+            referenceNumber,
+            incidentId: data.incidentId,
+            category: data.category,
+            description: data.description,
+            address: data.address,
+            department: data.department,
+            severity: data.severity,
+            slaHours: data.slaHours
+          });
+
+          if (result && result.complaint_text) {
+            complaintText = result.complaint_text;
+            break;
+          }
+        } catch (err) {
+          console.warn(`[DraftingAgent] LangChain attempt ${attempt} failed: ${err.message}`);
+        }
       }
+    } catch (initErr) {
+      console.warn(`[DraftingAgent] LangChain initialization failed: ${initErr.message}`);
     }
   } else {
-    console.warn("[DraftingAgent] GEMINI_API_KEY not set. Using professional template fallback.");
+    console.warn("[DraftingAgent] GEMINI_API_KEY not configured. Using template fallback.");
   }
 
-  // Fall back to template notice if LLM failed or API key missing
+  // Fall back to template notice if LLM execution failed or API key missing
   if (!complaintText) {
+    console.log("[DraftingAgent] Using fallback document template.");
     complaintText = buildFallbackDraft(data, referenceNumber);
   }
 
@@ -189,10 +171,7 @@ async function draftingAgent(incident) {
     format: "letter"
   };
 
-  if (!validateDraft(result)) {
-    throw new Error("DraftingAgent produced an invalid draft output block.");
-  }
-
+  console.log(`[DraftingAgent] Success! Document generated with Reference Number '${referenceNumber}'`);
   return result;
 }
 
