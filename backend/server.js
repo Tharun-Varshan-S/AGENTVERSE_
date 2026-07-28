@@ -6,6 +6,7 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const complaintRoutes = require('./routes/complaints');
 const adminRoutes = require('./routes/admin');
+const { startScheduler } = require('./services/scheduler');
 
 const app = express();
 
@@ -33,6 +34,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
+    startScheduler();
     app.listen(PORT, () => {
       console.log(`[Server] Express server running on port ${PORT}`);
       console.log(`[Server] Health check available at http://localhost:${PORT}/api/health`);
