@@ -243,12 +243,6 @@ const Home = () => {
       <section className="w-full flex flex-col items-center px-4 sm:px-6 lg:px-8 py-16 sm:py-20 relative hero-radial-glow">
         <div className="max-w-4xl w-full text-center space-y-8 my-auto relative z-10 pt-4">
           
-          {/* Minimal Pill Badge */}
-          <div className="inline-flex items-center space-x-2 bg-black/5 border border-black/10 px-4 py-1.5 rounded-full text-xs font-semibold text-[#0A0A0A] shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-black animate-pulse"></span>
-            <span>AI-Powered Municipal Grievance Pipeline</span>
-          </div>
-
           {/* Hero Headline */}
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-[#0A0A0A] leading-[1.08] max-w-4xl mx-auto">
             Civic Complaint-to-Resolution System
