@@ -16,7 +16,8 @@ const connectDB = async () => {
   }
 
   try {
-    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
+    const timeoutMs = process.env.ALLOW_INMEMORY_FALLBACK === 'true' ? 3000 : 15000;
+    const conn = await mongoose.connect(uri, { serverSelectionTimeoutMS: timeoutMs });
     console.log(`[MongoDB] Connected successfully to MongoDB server: ${conn.connection.host}`);
     console.log(`[MongoDB] Connected to database: ${conn.connection.name}`);
     return conn;
