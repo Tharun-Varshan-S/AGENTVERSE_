@@ -46,20 +46,23 @@ const StatusTimeline = ({ currentStatus }) => {
           const isCurrent = idx === currentIndex;
 
           return (
-            <div key={stage.id} className="relative z-10 flex items-start space-x-3.5 group">
+            <div
+              key={stage.id}
+              className="group relative z-10 flex items-center space-x-3.5 p-2.5 rounded-2xl cursor-pointer transition-all duration-300 ease-out hover:bg-white/70 hover:scale-[1.04] hover:shadow-lg hover:border hover:border-[#FACC15]/60 active:scale-95"
+            >
               
-              {/* Circle Badge */}
+              {/* Circle Badge with Smooth Enlarge Hover Effect */}
               <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-[11px] transition-all duration-300 shrink-0 ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs transition-all duration-300 ease-out shrink-0 transform group-hover:scale-125 group-hover:shadow-xl ${
                   isCurrent
-                    ? 'bg-black text-white ring-3 ring-black/15 scale-105 shadow-md'
+                    ? 'bg-black text-white ring-3 ring-black/20 scale-105 shadow-md group-hover:ring-4 group-hover:ring-black/30'
                     : isCompleted
-                    ? 'bg-black text-white shadow-xs'
-                    : 'bg-white border-2 border-black/20 text-black/40'
+                    ? 'bg-black text-white shadow-xs group-hover:bg-neutral-900'
+                    : 'bg-white border-2 border-black/20 text-black/40 group-hover:border-black group-hover:text-black'
                 }`}
               >
                 {isCompleted && !isCurrent ? (
-                  <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
@@ -67,28 +70,28 @@ const StatusTimeline = ({ currentStatus }) => {
                 )}
               </div>
 
-              {/* Step Info Box */}
-              <div className="pt-0.5 space-y-0.5 flex-1 min-w-0">
+              {/* Step Info Box with Smooth Text Motion */}
+              <div className="space-y-0.5 flex-1 min-w-0 transition-transform duration-300 ease-out group-hover:translate-x-1">
                 <div className="flex items-center justify-between gap-1">
                   <span
-                    className={`block text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                    className={`block text-[11px] font-extrabold uppercase tracking-wider truncate transition-colors duration-300 ${
                       isCurrent
                         ? 'text-[#0A0A0A]'
                         : isCompleted
-                        ? 'text-[#2B3A4C]'
-                        : 'text-neutral-400'
+                        ? 'text-[#2B3A4C] group-hover:text-black'
+                        : 'text-neutral-400 group-hover:text-black'
                     }`}
                   >
                     {stage.label}
                   </span>
                   {isCurrent && (
-                    <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-black text-white shrink-0">
+                    <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-black text-white shrink-0 shadow-xs">
                       Active
                     </span>
                   )}
                 </div>
 
-                <p className="text-[10px] text-[#4A4A4A] font-medium leading-tight truncate">
+                <p className="text-[10px] text-[#4A4A4A] font-medium leading-tight truncate group-hover:text-neutral-700">
                   {stage.desc}
                 </p>
               </div>
