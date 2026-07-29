@@ -277,27 +277,6 @@ const Home = () => {
             </Link>
           </div>
 
-          {/* Downward Dot Arrow Graphic */}
-          <div className="pt-10 pb-2 flex justify-center opacity-75">
-            <div className="flex flex-col items-center space-y-1.5">
-              <div className="flex space-x-6">
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-              </div>
-              <div className="flex space-x-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-              </div>
-              <div className="flex space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-                <span className="w-2.5 h-2.5 rounded-full bg-black"></span>
-              </div>
-              <div>
-                <span className="w-2.5 h-2.5 rounded-full bg-black block"></span>
-              </div>
-            </div>
-          </div>
-
         </div>
       </section>
 
