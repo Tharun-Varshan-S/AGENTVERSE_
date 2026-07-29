@@ -88,21 +88,24 @@ async function lookupDepartment(category, ward) {
   let dept = null;
   const normalizedCategory = category || "other";
 
-  try {
-    // Attempt 1: Query MongoDB using category and ward
-    if (ward) {
-      dept = await Department.findOne({ category: normalizedCategory, ward });
+  const mongoose = require('mongoose');
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    try {
+      // Attempt 1: Query MongoDB using category and ward
+      if (ward) {
+        dept = await Department.findOne({ category: normalizedCategory, ward }).maxTimeMS(1000);
+      }
+      // Attempt 2: Query MongoDB using category only (first match)
+      if (!dept) {
+        dept = await Department.findOne({ category: normalizedCategory }).maxTimeMS(1000);
+      }
+      // Attempt 3: Query MongoDB using 'other' category
+      if (!dept && normalizedCategory !== 'other') {
+        dept = await Department.findOne({ category: 'other' }).maxTimeMS(1000);
+      }
+    } catch (err) {
+      console.warn(`[routingAgent] MongoDB lookup failed: ${err.message}. Using in-memory fallback.`);
     }
-    // Attempt 2: Query MongoDB using category only (first match)
-    if (!dept) {
-      dept = await Department.findOne({ category: normalizedCategory });
-    }
-    // Attempt 3: Query MongoDB using 'other' category
-    if (!dept && normalizedCategory !== 'other') {
-      dept = await Department.findOne({ category: 'other' });
-    }
-  } catch (err) {
-    console.warn(`[routingAgent] MongoDB lookup failed: ${err.message}. Using in-memory fallback.`);
   }
 
   // Fallback to in-memory mapping if database query returns nothing
