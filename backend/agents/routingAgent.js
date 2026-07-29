@@ -1,12 +1,11 @@
 const Department = require('../models/Department');
 
 /**
- * Map issue category and text keywords to severity level and SLA target hours.
+ * Dynamic Severity and SLA calculator based on complaint category & text signals.
  */
 function calculateSeverityAndSLA(category, description = "") {
   const text = description.toLowerCase();
   
-  // Critical emergencies
   if (text.includes("live wire") || text.includes("explosion") || text.includes("severe flood") || text.includes("burst main")) {
     return { severity: "critical", sla_hours: 12 };
   }
@@ -27,45 +26,58 @@ function calculateSeverityAndSLA(category, description = "") {
 }
 
 /**
- * Dynamic Routing Agent (Agent 2).
- * Queries Department MongoDB collection using issue category and calculates SLA parameters.
+ * Helper to extract Ward designation from address string (e.g. "Ward 1", "Ward 2", "Ward 3").
+ */
+function extractWardFromAddress(address = "") {
+  const match = address.match(/ward\s*(\d+)/i);
+  return match ? `Ward ${match[1]}` : "Ward 1";
+}
+
+/**
+ * Dynamic Department Routing Agent (Agent 2).
+ * Queries MongoDB Department database using complaint category and spatial ward mapping.
  */
 async function routingAgent(incident) {
-  console.log("[RoutingAgent] Starting department routing lookup...");
+  console.log("[RoutingAgent] Starting dynamic database routing query...");
 
   const intake = incident.intake || {};
   const category = intake.issue_category || "other";
   const description = intake.description || "";
+  const address = intake.location?.address || "";
 
-  // Step 1: Calculate severity and SLA hours
+  // Step 1: Extract ward designation from geocoded address
+  const targetWard = extractWardFromAddress(address);
+  console.log(`[RoutingAgent] Extracted Ward: '${targetWard}' for Category: '${category}'`);
+
+  // Step 2: Calculate SLA and Severity levels dynamically
   const { severity, sla_hours } = calculateSeverityAndSLA(category, description);
 
-  // Step 2: Attempt dynamic database lookup from Department collection
   let departmentName = null;
   let departmentContact = null;
 
+  // Step 3: Query MongoDB Department collection dynamically
   try {
-    const deptMatch = await Department.findOne({ category });
+    // Attempt exact match on both Category AND Ward
+    let deptMatch = await Department.findOne({ category, ward: targetWard });
+
+    // Fall back to any department matching Category if specific ward is unmapped
+    if (!deptMatch) {
+      deptMatch = await Department.findOne({ category });
+    }
+
     if (deptMatch) {
       departmentName = deptMatch.department;
       departmentContact = deptMatch.contact;
+      console.log(`[RoutingAgent] Database Match Found! Department: '${departmentName}', Contact: '${departmentContact}'`);
     }
   } catch (err) {
-    console.warn(`[RoutingAgent] Department database lookup warning: ${err.message}`);
+    console.warn(`[RoutingAgent] Database query error: ${err.message}`);
   }
 
-  // Step 3: Default fallbacks if DB lookup returns null or DB is unseeded
+  // Fallback if database record is missing
   if (!departmentName) {
-    const defaultDepartments = {
-      pothole: { name: "Roads & Public Works Dept", contact: "publicworks-ward1@civic.gov.in" },
-      garbage: { name: "Solid Waste Management Dept", contact: "sanitation-ward1@civic.gov.in" },
-      streetlight: { name: "Electrical & Lighting Dept", contact: "lighting-ward1@civic.gov.in" },
-      water_leak: { name: "Water Supply & Sewage Board", contact: "water-ward1@civic.gov.in" },
-      other: { name: "Municipal Grievance Cell", contact: "grievance@civic.gov.in" }
-    };
-    const fallback = defaultDepartments[category] || defaultDepartments.other;
-    departmentName = fallback.name;
-    departmentContact = fallback.contact;
+    departmentName = "Municipal Grievance Cell";
+    departmentContact = "grievance@civic.gov.in";
   }
 
   const output = {

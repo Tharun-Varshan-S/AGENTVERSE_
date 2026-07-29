@@ -1,16 +1,24 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ComplaintForm from '../components/ComplaintForm';
+import LiveAgentStream from '../components/LiveAgentStream';
 
 const ReportComplaint = () => {
   const [submittedIncident, setSubmittedIncident] = useState(null);
+  const [activeStage, setActiveStage] = useState(null);
+  const [completedStages, setCompletedStages] = useState(['intake', 'routing', 'drafting', 'tracking']);
+  const [aiError, setAiError] = useState(null);
 
   const handleSuccess = (incidentData) => {
     setSubmittedIncident(incidentData);
+    setActiveStage('complete');
+    setAiError(null);
   };
 
   const handleFileAnother = () => {
     setSubmittedIncident(null);
+    setActiveStage(null);
+    setAiError(null);
   };
 
   return (
@@ -40,7 +48,7 @@ const ReportComplaint = () => {
             <div>
               <h2 className="text-xl font-extrabold text-[#0A0A0A]">Complaint Filed Successfully!</h2>
               <p className="text-xs text-[#4A4A4A] mt-0.5 font-medium">
-                Your complaint has been processed through the AI pipeline and registered.
+                Your complaint has been processed through the LangGraph AI pipeline.
               </p>
             </div>
           </div>
@@ -82,6 +90,13 @@ const ReportComplaint = () => {
               </div>
             )}
           </div>
+
+          {/* Live Agent Execution Stream Component */}
+          <LiveAgentStream
+            activeStage={activeStage}
+            completedStages={completedStages}
+            aiError={aiError}
+          />
 
           {/* Instruction Note */}
           <div className="text-xs text-[#4A4A4A] bg-neutral-50 p-4 rounded-xl border border-neutral-200 flex items-start space-x-2.5">

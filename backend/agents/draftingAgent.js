@@ -3,17 +3,10 @@ dotenv.config();
 
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } = require('@langchain/core/prompts');
-const { z } = require('zod');
-
-// 1. Zod Schema for Structured Output
-const DraftOutputSchema = z.object({
-  complaint_text: z.string().min(20)
-    .describe("The formal municipal complaint letter following official governance structure")
-});
+const { DraftingOutputSchema, validateDraftingOutput } = require('../schemas/draftingSchema');
 
 /**
- * 2. LangChain ChatPromptTemplate definition with SystemMessage & HumanMessage templates.
- * Enforces structured generation of formal government complaint notices.
+ * LangChain ChatPromptTemplate definition with SystemMessage & HumanMessage templates.
  */
 const draftingPromptTemplate = ChatPromptTemplate.fromMessages([
   SystemMessagePromptTemplate.fromTemplate(
@@ -21,8 +14,11 @@ const draftingPromptTemplate = ChatPromptTemplate.fromMessages([
 Generate an official municipal complaint letter based strictly on the provided incident data.
 
 Instructions:
-- The letter must follow formal government format (To Department Head, Subject, Formal Incident Details, SLA Expectations, Resolution Request).
-- Maintain professional tone.
+- Include a formal subject line.
+- Provide an official body statement.
+- Maintain formal, urgent, or directive tone.
+- Assemble the complete complaint letter in complaint_text.
+- Set appropriate metadata parameters.
 - Do NOT hallucinate fake officer names, specific dates, or fake signatures.`
   ),
   HumanMessagePromptTemplate.fromTemplate(
@@ -39,7 +35,7 @@ Instructions:
 ]);
 
 /**
- * 3. Validate & extract relevant input data from the Incident object.
+ * Validate & extract relevant input data from the Incident object.
  */
 function validateInput(incident = {}) {
   const incidentId = incident.incident_id || (incident._id ? incident._id.toString() : "INC-TEMP");
@@ -69,7 +65,7 @@ function validateInput(incident = {}) {
 }
 
 /**
- * 4. Generate a deterministic, unique backend reference number.
+ * Generate a deterministic, unique backend reference number.
  */
 function generateReferenceNumber(incidentId) {
   const year = new Date().getFullYear();
@@ -78,10 +74,13 @@ function generateReferenceNumber(incidentId) {
 }
 
 /**
- * 5. High-quality fallback template builder if LLM API is unavailable.
+ * Fallback template builder if LLM API is unreachable or rate-limited.
  */
 function buildFallbackDraft(data, referenceNumber) {
-  return `OFFICIAL MUNICIPAL CIVIC COMPLAINT NOTICE
+  const subject = `Formal Resolution Request for Reported ${data.category.toUpperCase()} Issue`;
+  const body = `A public complaint has been logged regarding an active civic issue at ${data.address}.\nReported Description: "${data.description}"\n\nThe ${data.department} is requested to inspect the site and complete remediation within the mandatory ${data.slaHours}-hour SLA timeframe.`;
+  
+  const complaintText = `OFFICIAL MUNICIPAL CIVIC COMPLAINT NOTICE
 Reference Number: ${referenceNumber}
 Incident ID: ${data.incidentId}
 
@@ -91,88 +90,91 @@ CATEGORY: ${data.category.toUpperCase()}
 PRIORITY SEVERITY: ${data.severity.toUpperCase()}
 SLA TARGET: ${data.slaHours} Hours
 
-SUBJECT: Formal Resolution Request for Reported ${data.category.toUpperCase()} Issue
+SUBJECT: ${subject}
 
 STATEMENT OF INCIDENT:
-A public complaint has been logged regarding an active civic issue at ${data.address}.
-Reported Description: "${data.description}"
-
-SERVICE LEVEL AGREEMENT DIRECTIVE:
-Under current municipal governance protocols, this incident has been rated as ${data.severity.toUpperCase()} priority.
-The ${data.department} is requested to inspect the site and complete remediation within the mandatory ${data.slaHours}-hour SLA timeframe.
+${body}
 
 Issued by: AGENTVERSE Autonomous Civic Management System`;
+
+  return {
+    subject,
+    body,
+    tone: "formal",
+    complaint_text: complaintText,
+    metadata: {
+      sla_target_hours: data.slaHours,
+      target_department: data.department,
+      severity_level: data.severity === 'critical' ? 'critical' : data.severity === 'high' ? 'high' : data.severity === 'low' ? 'low' : 'medium'
+    }
+  };
 }
 
 /**
- * Main Drafting Agent Entry Point (Agent 3).
- * Receives the routed Incident object, generates formal notice & reference number.
+ * Dynamic Drafting Agent Entry Point (Agent 3) with HTTP 429 Rate Limit Alert & Zod Validation.
  */
 async function draftingAgent(incident) {
-  console.log("[DraftingAgent] Starting document generation...");
+  console.log("[DraftingAgent] Executing dynamic LLM document generator...");
   const data = validateInput(incident);
   const referenceNumber = generateReferenceNumber(data.incidentId);
 
-  let complaintText = null;
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
-  if (apiKey && apiKey.trim()) {
-    const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  let draftResult = null;
+
+  if (apiKey) {
     try {
-      // LangChain Chat Model initialization
       const model = new ChatGoogleGenerativeAI({
-        apiKey,
-        modelName,
+        apiKey: apiKey,
+        model: modelName,
         temperature: 0.2
       });
 
-      // Runnable LCEL Pipeline with Zod Structured Output
-      const structuredModel = model.withStructuredOutput(DraftOutputSchema);
+      const structuredModel = model.withStructuredOutput(DraftingOutputSchema);
       const runnablePipeline = draftingPromptTemplate.pipe(structuredModel);
 
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          console.log(`[DraftingAgent] Invoking LangChain LCEL pipeline (Attempt ${attempt})...`);
-          const result = await runnablePipeline.invoke({
-            referenceNumber,
-            incidentId: data.incidentId,
-            category: data.category,
-            description: data.description,
-            address: data.address,
-            department: data.department,
-            severity: data.severity,
-            slaHours: data.slaHours
-          });
+      console.log(`[DraftingAgent] Invoking LangChain Structured Output Pipeline (${modelName})...`);
+      const rawResult = await runnablePipeline.invoke({
+        referenceNumber,
+        incidentId: data.incidentId,
+        category: data.category,
+        description: data.description,
+        address: data.address,
+        department: data.department,
+        severity: data.severity,
+        slaHours: data.slaHours
+      });
 
-          if (result && result.complaint_text) {
-            complaintText = result.complaint_text;
-            break;
-          }
-        } catch (err) {
-          console.warn(`[DraftingAgent] LangChain attempt ${attempt} failed: ${err.message}`);
-        }
+      // Immediate runtime schema validation
+      draftResult = validateDraftingOutput(rawResult);
+    } catch (err) {
+      const isRateLimit = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.status === 429;
+      if (isRateLimit) {
+        console.warn(`⚠️ [RATE LIMIT ALERT] HTTP 429 Too Many Requests / Quota Exceeded on Gemini API (${modelName})! Using template fallback.`);
+      } else {
+        console.warn(`[DraftingAgent Notice] LLM Invocation Exception: ${err.message}. Using template fallback.`);
       }
-    } catch (initErr) {
-      console.warn(`[DraftingAgent] LangChain initialization failed: ${initErr.message}`);
     }
-  } else {
-    console.warn("[DraftingAgent] GEMINI_API_KEY not configured. Using template fallback.");
   }
 
-  // Fall back to template notice if LLM execution failed or API key missing
-  if (!complaintText) {
-    console.log("[DraftingAgent] Using fallback document template.");
-    complaintText = buildFallbackDraft(data, referenceNumber);
+  if (!draftResult) {
+    console.log("[DraftingAgent] Utilizing formatted legal document fallback.");
+    draftResult = validateDraftingOutput(buildFallbackDraft(data, referenceNumber));
   }
 
-  const result = {
-    complaint_text: complaintText,
+  const output = {
+    subject: draftResult.subject,
+    body: draftResult.body,
+    tone: draftResult.tone,
+    complaint_text: draftResult.complaint_text,
     reference_number: referenceNumber,
-    format: "letter"
+    format: "letter",
+    metadata: draftResult.metadata
   };
 
-  console.log(`[DraftingAgent] Success! Document generated with Reference Number '${referenceNumber}'`);
-  return result;
+  console.log(`[DraftingAgent] Generated document with Reference Number '${referenceNumber}'`);
+  return output;
 }
 
 module.exports = draftingAgent;

@@ -3,23 +3,12 @@ dotenv.config();
 
 const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } = require('@langchain/core/prompts');
-const { z } = require('zod');
+const { IntakeOutputSchema, validateIntakeOutput } = require('../schemas/intakeSchema');
 
 const ALLOWED_CATEGORIES = ["pothole", "garbage", "streetlight", "water_leak", "other"];
 
-// 1. Zod Schema for Structured Output
-const ClassificationSchema = z.object({
-  category: z.enum(["pothole", "garbage", "streetlight", "water_leak", "other"])
-    .describe("Strictly classify into one of the allowed categories: pothole, garbage, streetlight, water_leak, other"),
-  confidence: z.number().min(0).max(1)
-    .describe("Confidence score between 0.0 and 1.0"),
-  clean_description: z.string()
-    .describe("Standardized concise summary of the citizen complaint")
-});
-
 /**
- * 2. LangChain ChatPromptTemplate definition with explicit SystemMessage and HumanMessage.
- * Separation of system instructions from citizen input increases LLM compliance.
+ * LangChain ChatPromptTemplate with SystemMessage & HumanMessage separation.
  */
 const intakePromptTemplate = ChatPromptTemplate.fromMessages([
   SystemMessagePromptTemplate.fromTemplate(
@@ -29,9 +18,11 @@ Analyze the citizen complaint description and accurately classify it into one of
 Allowed categories: ["pothole", "garbage", "streetlight", "water_leak", "other"]
 
 Instructions:
-- Provide a category matching the complaint.
-- Provide a confidence score between 0.0 and 1.0.
-- Provide a clean, standardized summary description of the issue.`
+- Classify into exactly one category.
+- Estimate confidence score between 0.0 and 1.0.
+- Provide a clean, standardized summary description.
+- Extract key location mentions, urgency indicators, and keyword signals into entities.
+- Assign an initial priority (low, medium, high, critical) and explain your reasoning.`
   ),
   HumanMessagePromptTemplate.fromTemplate(
     `Citizen Complaint Description:
@@ -40,7 +31,7 @@ Instructions:
 ]);
 
 /**
- * 3. Validate & sanitize raw input fields.
+ * Validate & sanitize raw input fields.
  */
 function validateInput(rawInput = {}) {
   const rawType = (rawInput.raw_input_type || "").toLowerCase();
@@ -68,10 +59,7 @@ function validateInput(rawInput = {}) {
 }
 
 /**
- * 4. Resolve location using 3-tier priority:
- *    Priority 1: Reverse Geocode via OpenStreetMap Nominatim if lat & lng exist
- *    Priority 2: Manually entered address
- *    Priority 3: "Unknown"
+ * Resolve location via OpenStreetMap Nominatim reverse geocoding.
  */
 async function resolveLocation(lat, lng, manualAddress) {
   let resolvedAddress = "Unknown";
@@ -99,7 +87,7 @@ async function resolveLocation(lat, lng, manualAddress) {
         }
       }
     } catch (err) {
-      console.warn(`[IntakeAgent] Reverse geocoding failed: ${err.message}. Falling back to manual address.`);
+      console.warn(`[IntakeAgent] Reverse geocoding network notice: ${err.message}`);
     }
   }
 
@@ -115,7 +103,7 @@ async function resolveLocation(lat, lng, manualAddress) {
 }
 
 /**
- * 5. Rule-based keyword fallback when Gemini API key is missing or calls fail.
+ * Rule-based classification fallback for network offline or 429 rate limit handling.
  */
 function ruleBasedClassification(description) {
   const text = description.toLowerCase();
@@ -137,84 +125,79 @@ function ruleBasedClassification(description) {
   }
 
   return {
+    intent: "report_civic_issue",
     category,
     confidence,
-    clean_description: description
+    clean_description: description,
+    entities: { location_mentions: [], urgency_indicators: [], keyword_signals: [category] },
+    priority: category === "pothole" || category === "water_leak" ? "high" : "medium",
+    reasoning: "Rule-based keyword fallback classification"
   };
 }
 
 /**
- * 6. Classify complaint using LangChain Chat Model & LCEL Runnable Pipeline with retry.
+ * Dynamic LLM Complaint Classification via LangChain & Modular Zod Schema.
  */
 async function classifyComplaint(description) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    console.warn("[IntakeAgent] GEMINI_API_KEY not configured. Using keyword fallback.");
-    return ruleBasedClassification(description);
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
+  if (!apiKey) {
+    console.warn("[IntakeAgent] GEMINI_API_KEY not set. Using classification rules.");
+    return validateIntakeOutput(ruleBasedClassification(description));
   }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-
   try {
-    // Initialize LangChain Chat Model
     const model = new ChatGoogleGenerativeAI({
-      apiKey,
-      modelName,
+      apiKey: apiKey,
+      model: modelName,
       temperature: 0.1
     });
 
-    // Create Runnable Pipeline: Prompt | Model with Structured Output
-    const structuredModel = model.withStructuredOutput(ClassificationSchema);
+    // Pass modular Zod schema to withStructuredOutput
+    const structuredModel = model.withStructuredOutput(IntakeOutputSchema);
     const runnablePipeline = intakePromptTemplate.pipe(structuredModel);
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        console.log(`[IntakeAgent] Invoking LangChain LCEL pipeline (Attempt ${attempt})...`);
-        const result = await runnablePipeline.invoke({ description });
-        
-        return {
-          category: result.category,
-          confidence: Math.max(0, Math.min(1, result.confidence || 0.85)),
-          clean_description: result.clean_description || description
-        };
-      } catch (err) {
-        console.warn(`[IntakeAgent] LangChain attempt ${attempt} failed: ${err.message}`);
-      }
+    console.log(`[IntakeAgent] Invoking LangChain Structured Output Pipeline (${modelName})...`);
+    const rawResult = await runnablePipeline.invoke({ description });
+    
+    // Immediate runtime schema validation
+    return validateIntakeOutput(rawResult);
+  } catch (err) {
+    const isRateLimit = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.status === 429;
+    if (isRateLimit) {
+      console.warn(`⚠️ [RATE LIMIT ALERT] HTTP 429 Too Many Requests on Gemini API (${modelName})! Using rule fallback.`);
+    } else {
+      console.warn(`[IntakeAgent Notice] LLM Exception: ${err.message}. Using rule fallback.`);
     }
-  } catch (initErr) {
-    console.warn(`[IntakeAgent] Failed to initialize LangChain Chat Model: ${initErr.message}`);
+    return validateIntakeOutput(ruleBasedClassification(description));
   }
-
-  console.warn("[IntakeAgent] Falling back to rule-based classification.");
-  return ruleBasedClassification(description);
 }
 
 /**
- * Main Intake Agent Entry Point (Agent 1).
+ * Main Intake Agent Entry Point.
  */
 async function intakeAgent(incident, rawInput = {}) {
-  console.log("[IntakeAgent] Starting intake processing...");
+  console.log("[IntakeAgent] Executing dynamic AI intake agent...");
   
-  // Step 1: Validate and sanitize raw input
   const inputData = validateInput(rawInput);
-
-  // Step 2: Resolve Location (Reverse geocoding -> manual address -> "Unknown")
   const locationData = await resolveLocation(inputData.lat, inputData.lng, inputData.address);
-
-  // Step 3: Classify complaint description via LangChain Runnable pipeline
   const classificationResult = await classifyComplaint(inputData.description);
 
-  // Step 4: Construct final standardized Intake object
   const output = {
     raw_input_type: inputData.raw_input_type,
     description: classificationResult.clean_description,
     issue_category: classificationResult.category,
     location: locationData,
     image_url: inputData.image_url,
-    confidence: classificationResult.confidence
+    confidence: classificationResult.confidence,
+    intent: classificationResult.intent,
+    priority: classificationResult.priority,
+    entities: classificationResult.entities,
+    reasoning: classificationResult.reasoning
   };
 
-  console.log(`[IntakeAgent] Success! Category: '${output.issue_category}', Confidence: ${output.confidence}`);
+  console.log(`[IntakeAgent] Classified Category: '${output.issue_category}' (Priority: ${output.priority}, Confidence: ${output.confidence})`);
   return output;
 }
 
