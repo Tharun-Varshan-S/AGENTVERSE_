@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Footer from '../components/Footer';
-
+import HeroVisual from '../components/HeroVisual';
 
 const capabilities = [
   {
@@ -239,42 +239,52 @@ const Home = () => {
   return (
     <div className="min-h-screen flex flex-col items-center relative overflow-hidden bg-white">
       
-      {/* Hero Section with Radial Glow */}
-      <section className="w-full flex flex-col items-center px-4 sm:px-6 lg:px-8 py-16 sm:py-20 relative hero-radial-glow">
-        <div className="max-w-4xl w-full text-center space-y-8 my-auto relative z-10 pt-4">
-          
-          {/* Hero Headline */}
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-[#0A0A0A] leading-[1.08] max-w-4xl mx-auto">
-            Civic Complaint-to-Resolution System
-          </h1>
+      {/* Hero Section with Radial Glow & Layered 3D Visual */}
+      <section className="w-full relative hero-radial-glow py-12 sm:py-20 lg:py-24 overflow-visible">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+            
+            {/* Left Column: Headline, Description & CTAs */}
+            <div className="lg:col-span-6 space-y-6 text-center lg:text-left">
+              
+              {/* Hero Headline */}
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-[#0A0A0A] leading-[1.08]">
+                Civic Complaint-to-Resolution System
+              </h1>
 
-          {/* Hero Description */}
-          <p className="text-base sm:text-lg md:text-xl text-[#4A4A4A] max-w-2xl mx-auto leading-relaxed font-normal">
-            Report civic issues like potholes, streetlights, or waste overflow instantly. Our automated multi-agent AI pipeline routes, drafts, and tracks your grievance to resolution.
-          </p>
+              {/* Hero Description */}
+              <p className="text-base sm:text-lg text-[#4A4A4A] leading-relaxed font-normal max-w-xl mx-auto lg:mx-0">
+                Report civic issues like potholes, streetlights, or waste overflow instantly. Our automated multi-agent AI pipeline routes, drafts, and tracks your grievance to resolution.
+              </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link
-              to="/report"
-              className="w-full sm:w-auto px-8 py-3.5 bg-black hover:bg-neutral-800 text-white font-bold rounded-full shadow-lg shadow-black/15 transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2 text-sm btn-pill"
-            >
-              <span>Report an Issue Now</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </Link>
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                <Link
+                  to="/report"
+                  className="w-full sm:w-auto px-8 py-3.5 bg-black hover:bg-neutral-800 text-white font-bold rounded-full shadow-lg shadow-black/15 transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2 text-sm btn-pill"
+                >
+                  <span>Report an Issue Now</span>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </Link>
 
-            <Link
-              to="/track"
-              className="w-full sm:w-auto px-7 py-3.5 bg-white border border-black text-[#0A0A0A] hover:bg-black hover:text-white font-bold transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2 text-sm btn-pill"
-            >
-              <span>Track Grievance</span>
-            </Link>
+                <Link
+                  to="/track"
+                  className="w-full sm:w-auto px-7 py-3.5 bg-white border border-black text-[#0A0A0A] hover:bg-black hover:text-white font-bold transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2 text-sm btn-pill"
+                >
+                  <span>Track Grievance</span>
+                </Link>
+              </div>
+
+            </div>
+
+            {/* Right Column: Layered 3D Visual with Independent Floating Elements */}
+            <div className="lg:col-span-6 flex items-center justify-center relative">
+              <HeroVisual />
+            </div>
+
           </div>
-
-
-
         </div>
       </section>
 
