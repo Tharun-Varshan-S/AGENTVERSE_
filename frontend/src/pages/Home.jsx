@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import Footer from '../components/Footer';
+
 
 const capabilities = [
   {
@@ -306,6 +308,9 @@ const Home = () => {
 
       {/* Resolution Workflow Section (Matching Reference Periwinkle/Lavender Step Layout) */}
       <WorkflowSection />
+
+      {/* Footer Section */}
+      <Footer />
 
     </div>
   );
