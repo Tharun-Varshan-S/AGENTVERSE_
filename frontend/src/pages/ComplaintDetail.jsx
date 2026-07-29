@@ -88,15 +88,15 @@ const ComplaintDetail = () => {
   const escalated = incident.escalation?.escalated || false;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       
-      {/* 2-Column Grid Layout: Main Details (Left) & Lengthy Vertical Resolution Progress (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Top Section: Card 1 + Card 2 (Left) & Resolution Progress (Right, Thinner & Matching Height) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         
-        {/* Left Main Content Column (7 cols) */}
-        <div className="lg:col-span-7 space-y-8">
+        {/* Left Column (8 cols): Card 1 (Header Overview) + Card 2 (Key Incident Details) */}
+        <div className="lg:col-span-8 flex flex-col space-y-6">
           
-          {/* Header section */}
+          {/* Card 1: Header section */}
           <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col justify-between space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -131,21 +131,13 @@ const ComplaintDetail = () => {
             </h1>
           </div>
 
-          {/* Escalation Banner */}
-          <EscalationBanner
-            escalated={escalated}
-            escalationText={incident.escalation?.escalation_text}
-            escalatedTo={incident.escalation?.escalated_to}
-            escalatedAt={incident.escalation?.escalated_at}
-          />
-
-          {/* Key Details Grid */}
+          {/* Card 2: Key Incident Details */}
           <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
             <h3 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
               Key Incident Details
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               
               <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
                 <span className="text-xs text-[#2B3A4C] block font-medium">Category</span>
@@ -178,20 +170,28 @@ const ComplaintDetail = () => {
             </div>
           </div>
 
-          {/* Letter Preview */}
-          <LetterPreview
-            complaintText={incident.draft?.complaint_text}
-            referenceNumber={incident.draft?.reference_number}
-          />
-
         </div>
 
-        {/* Right Column: Vertical Resolution Progress Card (5 cols, Sticky) */}
-        <div className="lg:col-span-5 lg:sticky lg:top-24">
+        {/* Right Column (4 cols): Thinner Vertical Resolution Progress matching total height of Card 1 + Card 2 */}
+        <div className="lg:col-span-4 flex">
           <StatusTimeline currentStatus={currentStatus} />
         </div>
 
       </div>
+
+      {/* Escalation Banner */}
+      <EscalationBanner
+        escalated={escalated}
+        escalationText={incident.escalation?.escalation_text}
+        escalatedTo={incident.escalation?.escalated_to}
+        escalatedAt={incident.escalation?.escalated_at}
+      />
+
+      {/* Letter Preview */}
+      <LetterPreview
+        complaintText={incident.draft?.complaint_text}
+        referenceNumber={incident.draft?.reference_number}
+      />
 
     </div>
   );
