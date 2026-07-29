@@ -1,15 +1,44 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
+const { ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate } = require('@langchain/core/prompts');
+const { IntakeOutputSchema, validateIntakeOutput } = require('../schemas/intakeSchema');
+
 const ALLOWED_CATEGORIES = ["pothole", "garbage", "streetlight", "water_leak", "other"];
 
 /**
- * 1. Validate & sanitize raw input fields.
+ * LangChain ChatPromptTemplate with SystemMessage & HumanMessage separation.
+ */
+const intakePromptTemplate = ChatPromptTemplate.fromMessages([
+  SystemMessagePromptTemplate.fromTemplate(
+    `You are an AI civic intake classifier for a municipal complaint management system.
+Analyze the citizen complaint description and accurately classify it into one of the designated categories.
+
+Allowed categories: ["pothole", "garbage", "streetlight", "water_leak", "other"]
+
+Instructions:
+- Classify into exactly one category.
+- Estimate confidence score between 0.0 and 1.0.
+- Provide a clean, standardized summary description.
+- Extract key location mentions, urgency indicators, and keyword signals into entities.
+- Assign an initial priority (low, medium, high, critical) and explain your reasoning.`
+  ),
+  HumanMessagePromptTemplate.fromTemplate(
+    `Citizen Complaint Description:
+"{description}"`
+  )
+]);
+
+/**
+ * Validate & sanitize raw input fields.
  */
 function validateInput(rawInput = {}) {
   const rawType = (rawInput.raw_input_type || "").toLowerCase();
   const validTypes = ["photo", "text", "voice"];
-  const raw_input_type = validTypes.includes(rawType) ? rawType : (rawInput.image_url || rawInput.image_path ? "photo" : "text");
+  const raw_input_type = validTypes.includes(rawType) 
+    ? rawType 
+    : (rawInput.image_url || rawInput.image_path ? "photo" : "text");
 
   const description = (rawInput.description || rawInput.raw_description || "").trim() || "Civic complaint submitted";
 
@@ -30,10 +59,7 @@ function validateInput(rawInput = {}) {
 }
 
 /**
- * 2. Resolve location using 3-tier priority:
- *    Priority 1: Reverse Geocode via OpenStreetMap Nominatim if lat & lng exist
- *    Priority 2: Manually entered address
- *    Priority 3: "Unknown"
+ * Resolve location via OpenStreetMap Nominatim reverse geocoding.
  */
 async function resolveLocation(lat, lng, manualAddress) {
   let resolvedAddress = "Unknown";
@@ -61,7 +87,7 @@ async function resolveLocation(lat, lng, manualAddress) {
         }
       }
     } catch (err) {
-      console.warn(`[IntakeAgent] Reverse geocoding failed: ${err.message}. Falling back to manual address.`);
+      console.warn(`[IntakeAgent] Reverse geocoding network notice: ${err.message}`);
     }
   }
 
@@ -77,125 +103,7 @@ async function resolveLocation(lat, lng, manualAddress) {
 }
 
 /**
- * 3. Build classification prompt for Gemini LLM.
- */
-function buildPrompt(description) {
-  return `You are an AI civic intake classifier for a municipal complaint management system.
-Analyze the following citizen complaint description and classify it into exactly one of the supported categories.
-
-Allowed categories: ["pothole", "garbage", "streetlight", "water_leak", "other"]
-
-Instruction:
-- Return ONLY a raw JSON object.
-- Do NOT include any markdown code fences (no \`\`\`json), explanations, or preamble.
-- Must include fields:
-  "category": (string, must be strictly one of the allowed categories)
-  "confidence": (number between 0.0 and 1.0)
-  "clean_description": (string, standardized clean summary of the complaint)
-
-Citizen Description:
-"${description}"`;
-}
-
-/**
- * 4. Parse response text into structured JSON.
- */
-function parseGeminiResponse(responseText) {
-  if (!responseText) throw new Error("Empty response from LLM");
-  let cleaned = responseText.trim();
-  // Strip markdown code fences if present
-  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  const parsed = JSON.parse(cleaned);
-  return parsed;
-}
-
-/**
- * 5. Normalize category string to allowed enum values.
- */
-function normalizeCategory(category) {
-  if (typeof category !== 'string') return "other";
-  const normalized = category.toLowerCase().trim();
-  return ALLOWED_CATEGORIES.includes(normalized) ? normalized : "other";
-}
-
-/**
- * Call Gemini API via @google/genai SDK or direct REST endpoint fallback.
- */
-async function callGeminiAPI(promptText, apiKey) {
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-  // Attempt 1: Try using @google/genai SDK
-  try {
-    const { GoogleGenAI } = require('@google/genai');
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: promptText
-    });
-    return response.text;
-  } catch (sdkError) {
-    // Attempt 2: Direct REST fetch fallback if SDK signature differs
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }]
-      })
-    });
-    if (!res.ok) {
-      throw new Error(`Gemini REST API error: ${res.statusText}`);
-    }
-    const data = await res.json();
-    return data.candidates[0].content.parts[0].text;
-  }
-}
-
-/**
- * 6. Classify complaint description using Gemini with 1 retry and graceful fallback.
- */
-async function classifyComplaint(description) {
-  const fallback = {
-    category: "other",
-    confidence: 0.5,
-    clean_description: description
-  };
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    console.warn("[IntakeAgent] GEMINI_API_KEY not set. Using rule-based keyword fallback.");
-    return ruleBasedClassification(description);
-  }
-
-  const promptText = buildPrompt(description);
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const responseText = await callGeminiAPI(promptText, apiKey);
-      const parsed = parseGeminiResponse(responseText);
-
-      const category = normalizeCategory(parsed.category);
-      let confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.85;
-      confidence = Math.max(0, Math.min(1, confidence));
-      const clean_description = typeof parsed.clean_description === 'string' && parsed.clean_description.trim() 
-        ? parsed.clean_description.trim() 
-        : description;
-
-      return {
-        category,
-        confidence,
-        clean_description
-      };
-    } catch (err) {
-      console.warn(`[IntakeAgent] Gemini classification attempt ${attempt} failed: ${err.message}`);
-    }
-  }
-
-  console.warn("[IntakeAgent] All Gemini attempts failed. Returning rule-based fallback.");
-  return ruleBasedClassification(description);
-}
-
-/**
- * Lightweight rule-based fallback when Gemini API key is not present or offline.
+ * Rule-based classification fallback for network offline or 429 rate limit handling.
  */
 function ruleBasedClassification(description) {
   const text = description.toLowerCase();
@@ -217,35 +125,80 @@ function ruleBasedClassification(description) {
   }
 
   return {
+    intent: "report_civic_issue",
     category,
     confidence,
-    clean_description: description
+    clean_description: description,
+    entities: { location_mentions: [], urgency_indicators: [], keyword_signals: [category] },
+    priority: category === "pothole" || category === "water_leak" ? "high" : "medium",
+    reasoning: "Rule-based keyword fallback classification"
   };
 }
 
 /**
+ * Dynamic LLM Complaint Classification via LangChain & Modular Zod Schema.
+ */
+async function classifyComplaint(description) {
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
+  if (!apiKey) {
+    console.warn("[IntakeAgent] GEMINI_API_KEY not set. Using classification rules.");
+    return validateIntakeOutput(ruleBasedClassification(description));
+  }
+
+  try {
+    const model = new ChatGoogleGenerativeAI({
+      apiKey: apiKey,
+      model: modelName,
+      temperature: 0.1
+    });
+
+    // Pass modular Zod schema to withStructuredOutput
+    const structuredModel = model.withStructuredOutput(IntakeOutputSchema);
+    const runnablePipeline = intakePromptTemplate.pipe(structuredModel);
+
+    console.log(`[IntakeAgent] Invoking LangChain Structured Output Pipeline (${modelName})...`);
+    const rawResult = await runnablePipeline.invoke({ description });
+    
+    // Immediate runtime schema validation
+    return validateIntakeOutput(rawResult);
+  } catch (err) {
+    const isRateLimit = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.status === 429;
+    if (isRateLimit) {
+      console.warn(`⚠️ [RATE LIMIT ALERT] HTTP 429 Too Many Requests on Gemini API (${modelName})! Using rule fallback.`);
+    } else {
+      console.warn(`[IntakeAgent Notice] LLM Exception: ${err.message}. Using rule fallback.`);
+    }
+    return validateIntakeOutput(ruleBasedClassification(description));
+  }
+}
+
+/**
  * Main Intake Agent Entry Point.
- * Standardized to interface seamlessly with pipeline.js and validator.js.
  */
 async function intakeAgent(incident, rawInput = {}) {
-  // Step 1: Validate and sanitize raw input
+  console.log("[IntakeAgent] Executing dynamic AI intake agent...");
+  
   const inputData = validateInput(rawInput);
-
-  // Step 2: Resolve Location (Reverse geocoding -> manual address -> "Unknown")
   const locationData = await resolveLocation(inputData.lat, inputData.lng, inputData.address);
-
-  // Step 3: Classify complaint description via Gemini LLM (with retries & fallback)
   const classificationResult = await classifyComplaint(inputData.description);
 
-  // Step 4: Construct final standardized Intake object
-  return {
+  const output = {
     raw_input_type: inputData.raw_input_type,
     description: classificationResult.clean_description,
     issue_category: classificationResult.category,
     location: locationData,
     image_url: inputData.image_url,
-    confidence: classificationResult.confidence
+    confidence: classificationResult.confidence,
+    intent: classificationResult.intent,
+    priority: classificationResult.priority,
+    entities: classificationResult.entities,
+    reasoning: classificationResult.reasoning
   };
+
+  console.log(`[IntakeAgent] Classified Category: '${output.issue_category}' (Priority: ${output.priority}, Confidence: ${output.confidence})`);
+  return output;
 }
 
 module.exports = intakeAgent;

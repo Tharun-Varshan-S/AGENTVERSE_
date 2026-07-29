@@ -1,101 +1,84 @@
+const { z } = require('zod');
+
+// 1. Intake Agent Output Schema
+const IntakeSchema = z.object({
+  raw_input_type: z.enum(["photo", "text", "voice"]),
+  description: z.string().min(1, "Description cannot be empty"),
+  issue_category: z.enum(["pothole", "garbage", "streetlight", "water_leak", "other"]),
+  location: z.object({
+    lat: z.number(),
+    lng: z.number(),
+    address: z.string()
+  }),
+  image_url: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1)
+});
+
+// 2. Routing Agent Output Schema
+const RoutingSchema = z.object({
+  department: z.string().min(1),
+  department_contact: z.string(),
+  severity: z.enum(["low", "medium", "high", "critical"]),
+  sla_hours: z.number().positive()
+});
+
+// 3. Drafting Agent Output Schema
+const DraftSchema = z.object({
+  complaint_text: z.string().min(10, "Complaint text must be substantial"),
+  reference_number: z.string().min(5),
+  format: z.enum(["letter", "pdf_url"])
+});
+
+// 4. Tracking Agent Output Schema
+const TrackingSchema = z.object({
+  submitted_at: z.union([z.date(), z.string().datetime(), z.string()]),
+  current_status: z.enum(["submitted", "acknowledged", "in_progress", "resolved"]),
+  last_updated: z.union([z.date(), z.string().datetime(), z.string()])
+});
+
+// 5. Escalation Agent Output Schema
+const EscalationSchema = z.object({
+  escalated: z.boolean(),
+  escalated_at: z.union([z.date(), z.string().datetime(), z.string()]),
+  escalation_text: z.string(),
+  escalated_to: z.string()
+});
+
 const schemaMap = {
-  intakeAgent: {
-    raw_input_type: { type: "enum", allowed: ["photo", "text", "voice"] },
-    description: { type: "string" },
-    issue_category: { type: "enum", allowed: ["pothole", "garbage", "streetlight", "water_leak", "other"] },
-    location: {
-      type: "object",
-      fields: {
-        lat: { type: "number" },
-        lng: { type: "number" },
-        address: { type: "string" }
-      }
-    },
-    image_url: { type: "string", optional: true },
-    confidence: { type: "number" }
-  },
-
-  routingAgent: {
-    department: { type: "string" },
-    department_contact: { type: "string" },
-    severity: { type: "enum", allowed: ["low", "medium", "high", "critical"] },
-    sla_hours: { type: "number" }
-  },
-
-  draftingAgent: {
-    complaint_text: { type: "string" },
-    reference_number: { type: "string" },
-    format: { type: "enum", allowed: ["letter", "pdf_url"] }
-  },
-
-  trackingAgent: {
-    submitted_at: { type: "date" },
-    current_status: { type: "enum", allowed: ["submitted", "acknowledged", "in_progress", "resolved"] },
-    last_updated: { type: "date" }
-  },
-
-  escalationAgent: {
-    escalated: { type: "boolean" },
-    escalated_at: { type: "date" },
-    escalation_text: { type: "string" },
-    escalated_to: { type: "string" }
-  }
+  intakeAgent: IntakeSchema,
+  routingAgent: RoutingSchema,
+  draftingAgent: DraftSchema,
+  trackingAgent: TrackingSchema,
+  escalationAgent: EscalationSchema
 };
 
-function validateField(fieldName, value, rule, agentName) {
-  if (value === undefined || value === null) {
-    if (rule.optional) return;
-    throw new Error(`Validation failed for ${agentName}: missing field '${fieldName}'`);
-  }
-
-  if (rule.type === "string") {
-    if (typeof value !== "string") {
-      throw new Error(`Validation failed for ${agentName}: invalid type for field '${fieldName}' (expected string)`);
-    }
-  } else if (rule.type === "number") {
-    if (typeof value !== "number" || isNaN(value)) {
-      throw new Error(`Validation failed for ${agentName}: invalid type for field '${fieldName}' (expected number)`);
-    }
-  } else if (rule.type === "boolean") {
-    if (typeof value !== "boolean") {
-      throw new Error(`Validation failed for ${agentName}: invalid type for field '${fieldName}' (expected boolean)`);
-    }
-  } else if (rule.type === "date") {
-    const isValidDate = value instanceof Date || (!isNaN(Date.parse(value)));
-    if (!isValidDate) {
-      throw new Error(`Validation failed for ${agentName}: invalid type for field '${fieldName}' (expected Date)`);
-    }
-  } else if (rule.type === "enum") {
-    if (typeof value !== "string" || !rule.allowed.includes(value)) {
-      throw new Error(`Validation failed for ${agentName}: invalid enum value '${value}' for field '${fieldName}'`);
-    }
-  } else if (rule.type === "object") {
-    if (typeof value !== "object" || Array.isArray(value) || value === null) {
-      throw new Error(`Validation failed for ${agentName}: invalid type for field '${fieldName}' (expected object)`);
-    }
-    if (rule.fields) {
-      for (const [subKey, subRule] of Object.entries(rule.fields)) {
-        validateField(`${fieldName}.${subKey}`, value[subKey], subRule, agentName);
-      }
-    }
-  }
-}
-
+/**
+ * Validates agent output against its defined Zod schema.
+ * Throws descriptive validation error if schema contract is violated.
+ */
 function validateAgentOutput(agentName, output) {
   const schema = schemaMap[agentName];
   if (!schema) {
-    throw new Error(`Unknown agent: ${agentName}`);
+    throw new Error(`[Validator Error] Unknown agent schema: '${agentName}'`);
   }
 
-  if (!output || typeof output !== "object" || Array.isArray(output)) {
-    throw new Error(`Validation failed for ${agentName}: output must be an object`);
-  }
-
-  for (const [fieldName, rule] of Object.entries(schema)) {
-    validateField(fieldName, output[fieldName], rule, agentName);
+  const result = schema.safeParse(output);
+  if (!result.success) {
+    const formattedErrors = result.error.errors
+      .map(e => `${e.path.join('.')}: ${e.message}`)
+      .join(', ');
+    console.error(`[Validation Failed] Agent '${agentName}': ${formattedErrors}`);
+    throw new Error(`Validation failed for ${agentName}: ${formattedErrors}`);
   }
 
   return true;
 }
 
-module.exports = { validateAgentOutput };
+module.exports = {
+  validateAgentOutput,
+  IntakeSchema,
+  RoutingSchema,
+  DraftSchema,
+  TrackingSchema,
+  EscalationSchema
+};
