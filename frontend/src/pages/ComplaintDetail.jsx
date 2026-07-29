@@ -88,37 +88,49 @@ const ComplaintDetail = () => {
   const escalated = incident.escalation?.escalated || false;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl">
-        <div>
-          <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase mb-2 shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
-            <span>Live Grievance Tracking</span>
-          </span>
-          <div className="flex items-center space-x-3 mt-1">
-            <span className="text-xs font-mono font-bold bg-black text-white px-3 py-1 rounded-full shadow-xs">
-              {incident.incident_id}
-            </span>
-            <span className="text-xs text-[#4A4A4A] font-medium">
-              Created: {new Date(incident.created_at).toLocaleDateString()}
-            </span>
+      {/* Top Horizontal Row: Header Info (Left) & Resolution Progress (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        
+        {/* Left Column: Incident Overview Card */}
+        <div className="lg:col-span-5 bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+                <span>Live Grievance Tracking</span>
+              </span>
+
+              <span className={`inline-block px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                escalated
+                  ? 'bg-black text-white border-2 border-black'
+                  : 'bg-black text-white'
+              }`}>
+                {currentStatus.replace('_', ' ')}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-3 mt-2">
+              <span className="text-xs font-mono font-bold bg-black text-white px-3 py-1 rounded-full shadow-xs">
+                {incident.incident_id}
+              </span>
+              <span className="text-xs text-[#4A4A4A] font-medium">
+                Created: {new Date(incident.created_at).toLocaleDateString()}
+              </span>
+            </div>
+
+            <h1 className="text-xl font-extrabold text-[#0A0A0A] mt-3.5 capitalize leading-snug">
+              {incident.intake?.description || 'Municipal Complaint Detail'}
+            </h1>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A] mt-2.5 capitalize">
-            {incident.intake?.description || 'Municipal Complaint Detail'}
-          </h1>
         </div>
 
-        <div className="shrink-0">
-          <span className={`inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider ${
-            escalated
-              ? 'bg-black text-white border-2 border-black'
-              : 'bg-black text-white'
-          }`}>
-            {currentStatus.replace('_', ' ')}
-          </span>
+        {/* Right Column: Status Timeline (Home Page Yellow Theme) */}
+        <div className="lg:col-span-7">
+          <StatusTimeline currentStatus={currentStatus} />
         </div>
+
       </div>
 
       {/* Escalation Banner */}
@@ -128,9 +140,6 @@ const ComplaintDetail = () => {
         escalatedTo={incident.escalation?.escalated_to}
         escalatedAt={incident.escalation?.escalated_at}
       />
-
-      {/* Status Timeline */}
-      <StatusTimeline currentStatus={currentStatus} />
 
       {/* Key Details Grid */}
       <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl space-y-4">

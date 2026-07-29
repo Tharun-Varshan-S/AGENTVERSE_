@@ -13,15 +13,20 @@ const StatusTimeline = ({ currentStatus }) => {
   if (currentIndex === -1) currentIndex = 0;
 
   return (
-    <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl">
-      <h3 className="text-xs font-bold text-[#0A0A0A] mb-6 uppercase tracking-wider">
-        Resolution Progress
-      </h3>
+    <div className="bg-[#FEF9C3]/80 border border-[#FDE047]/60 rounded-3xl p-6 shadow-xl h-full flex flex-col justify-between">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
+          Resolution Progress
+        </h3>
+        <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#FAF498] border border-[#FACC15] text-[#0A0A0A]">
+          Step {currentIndex + 1} of 4
+        </span>
+      </div>
 
-      <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-0">
+      <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-0 my-auto">
         
         {/* Connecting Line for Desktop */}
-        <div className="hidden md:block absolute top-5 left-8 right-8 h-1 bg-neutral-200 -z-0">
+        <div className="hidden md:block absolute top-5 left-8 right-8 h-1 bg-black/10 -z-0">
           <div
             className="h-full bg-black transition-all duration-500"
             style={{ width: `${(currentIndex / (stages.length - 1)) * 100}%` }}
@@ -41,8 +46,8 @@ const StatusTimeline = ({ currentStatus }) => {
                   isCurrent
                     ? 'bg-black text-white ring-4 ring-black/20 scale-110 shadow-md'
                     : isCompleted
-                    ? 'bg-neutral-800 text-white font-extrabold shadow-xs'
-                    : 'bg-neutral-100 border border-neutral-300 text-neutral-400'
+                    ? 'bg-black text-white font-extrabold shadow-xs'
+                    : 'bg-white border border-black/20 text-black/40'
                 }`}
               >
                 {isCompleted && !isCurrent ? (
@@ -61,13 +66,13 @@ const StatusTimeline = ({ currentStatus }) => {
                     isCurrent
                       ? 'text-[#0A0A0A]'
                       : isCompleted
-                      ? 'text-[#4A4A4A]'
+                      ? 'text-[#2B3A4C]'
                       : 'text-neutral-400'
                   }`}
                 >
                   {stage.label}
                 </span>
-                <span className="text-[11px] text-[#4A4A4A] block mt-0.5 font-medium">
+                <span className="text-[11px] text-[#4A4A4A] block mt-0.5 font-medium leading-tight">
                   {stage.desc}
                 </span>
               </div>
