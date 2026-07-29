@@ -13,6 +13,10 @@ const DraftingOutputSchema = z.object({
     .describe("Tone of the municipal complaint documentation"),
   complaint_text: z.string().min(50)
     .describe("Complete assembled legal municipal complaint letter"),
+  professional_summary: z.string().default("Complaint summary")
+    .describe("A professional, concise summary of the complaint"),
+  extracted_entities: z.array(z.string()).default([])
+    .describe("Key entities extracted from the complaint description (e.g., street names, landmarks, dates)"),
   metadata: z.object({
     sla_target_hours: z.number().positive().default(48),
     target_department: z.string().default("Municipal Grievance Department"),

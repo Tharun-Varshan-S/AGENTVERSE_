@@ -1,295 +1,212 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const AGENTS = [
-  { 
-    id: 'intake', 
-    name: 'Intake Agent', 
-    desc: 'Parsing multi-modal inputs & structured data',
-    logs: [
-      "Initializing multimodal parser...",
-      "Extracting keywords and entities from given forms...",
-      "Identifying location markers from coordinates...",
-      "Structuring payload for routing engine..."
-    ]
-  },
-  { 
-    id: 'routing', 
-    name: 'Routing Agent', 
-    desc: 'Analyzing severity & matching department',
-    logs: [
-      "Receiving structured complaint from Intake Agent...",
-      "Validating complaint schema...",
-      "Extracting complaint metadata...",
-      "Running NLP severity analysis...",
-      "Severity Score = 0.87 (High)",
-      "Detecting complaint category...",
-      "Category = Civic Infrastructure",
-      "Searching department registry...",
-      "Querying Government Department Directory...",
-      "Resolving jurisdiction...",
-      "Contacting Civic Department Service...",
-      "Waiting for department response...",
-      "Retrying request (1/3)...",
-      "Retrying request (2/3)...",
-      "Department endpoint responding slowly...",
-      "Performing DNS lookup...",
-      "Connection timeout...",
-      "Retrying secure connection...",
-      "ERROR: Department Registry Service Unreachable",
-      "ERROR: DNS_PROBE_FINISHED_NXDOMAIN",
-      "Routing process interrupted."
-    ]
-  },
-  { 
-    id: 'drafting', 
-    name: 'Drafting Agent', 
-    desc: 'Formulating official grievance draft',
-    logs: [
-      "Generating official grievance template..."
-    ]
-  },
-  { 
-    id: 'tracking', 
-    name: 'Tracking Agent', 
-    desc: 'Registering unique incident ID in ledger',
-    logs: [
-      "Connecting to central civic ledger..."
-    ]
-  },
-  { 
-    id: 'escalation', 
-    name: 'Escalation Agent', 
-    desc: 'Establishing SLA and escalation rules',
-    logs: [
-      "Evaluating SLA requirements for assigned department..."
-    ]
-  }
+const STAGES = [
+  { id: 'intake_agent', humanLabel: 'Understanding your issue...', humanDone: '✓ Complaint Understood', name: 'Intake Agent', desc: 'Parsing intent, urgency & entities' },
+  { id: 'routing_agent', humanLabel: 'Finding responsible department...', humanDone: '✓ Department & SLA Matched', name: 'Routing Agent', desc: 'Matching municipal ward & cited resources' },
+  { id: 'drafting_agent', humanLabel: 'Preparing official complaint notice...', humanDone: '✓ Official Notice Drafted', name: 'Drafting Agent', desc: 'Formulating legal grievance notice' },
+  { id: 'escalation_agent', humanLabel: 'Checking urgency & safety rules...', humanDone: '✓ Urgency & Safety Assessed', name: 'Escalation Agent', desc: 'Evaluating emergency rules & zonal escalation' },
+  { id: 'submission_&_tracking_agent', humanLabel: 'Submitting complaint to civic ledger...', humanDone: '✓ Complaint Registered', name: 'Submission & Tracking Agent', desc: 'Assigning Tracking ID & QR code verification' }
 ];
 
-const AIPipelineVisualizer = ({ isProcessing }) => {
-  const [pipelineState, setPipelineState] = useState('running'); // 'running', 'failed'
-  const [currentAgentIndex, setCurrentAgentIndex] = useState(-1);
-  const [currentLogIndex, setCurrentLogIndex] = useState(-1);
-  const [typedChars, setTypedChars] = useState(0);
+const AIPipelineVisualizer = ({ isProcessing, agentEvents = [] }) => {
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [selectedPayload, setSelectedPayload] = useState(null);
 
-  const terminalRef = useRef(null);
+  if (!isProcessing && agentEvents.length === 0) return null;
 
-  // Auto-scroll terminal
-  useEffect(() => {
-    if (terminalRef.current) {
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }
-  }, [typedChars, currentLogIndex]);
+  // Extract human-friendly progress events
+  const humanProgressEvents = agentEvents.filter(e => e.event === 'human_progress');
+  const latestHumanMsg = humanProgressEvents.length > 0 ? humanProgressEvents[humanProgressEvents.length - 1].data?.text : 'Processing complaint...';
 
-  useEffect(() => {
-    if (!isProcessing) {
-      setCurrentAgentIndex(-1);
-      setCurrentLogIndex(-1);
-      setTypedChars(0);
-      setPipelineState('running');
-      return;
-    }
-
-    if (currentAgentIndex === -1) {
-      setCurrentAgentIndex(0);
-      setCurrentLogIndex(0);
-      setTypedChars(0);
-      setPipelineState('running');
-      return;
-    }
-
-    if (pipelineState === 'failed') return;
-
-    const agent = AGENTS[currentAgentIndex];
-
-    if (currentLogIndex < agent.logs.length) {
-      const currentLog = agent.logs[currentLogIndex];
-      
-      if (typedChars < currentLog.length) {
-        // Typing effect (faster for standard logs, normal for others)
-        const timer = setTimeout(() => {
-          setTypedChars(prev => prev + 1);
-        }, 15); 
-        return () => clearTimeout(timer);
-      } else {
-        // Line finished typing, pause naturally before next line
-        let delay = agent.id === 'routing' ? Math.floor(Math.random() * 500) + 700 : 800;
-        
-        if (agent.id === 'routing' && currentLogIndex === agent.logs.length - 1) {
-          // Final error line reached
-          const timer = setTimeout(() => {
-            setPipelineState('failed');
-          }, 500);
-          return () => clearTimeout(timer);
-        }
-
-        const timer = setTimeout(() => {
-          setCurrentLogIndex(prev => prev + 1);
-          setTypedChars(0);
-        }, delay);
-        return () => clearTimeout(timer);
-      }
-    } else {
-      // Agent finished (Intake Agent)
-      const timer = setTimeout(() => {
-        setCurrentAgentIndex(prev => prev + 1);
-        setCurrentLogIndex(0);
-        setTypedChars(0);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [isProcessing, currentAgentIndex, currentLogIndex, typedChars, pipelineState]);
-
-  const handleRetry = () => {
-    setPipelineState('running');
-    setCurrentAgentIndex(1); // Restart Routing Agent
-    setCurrentLogIndex(0);
-    setTypedChars(0);
-  };
-
-  if (!isProcessing) return null;
+  const hasError = agentEvents.some(e => e.event === 'agent_error' || e.event === 'error');
+  const isComplete = agentEvents.some(e => e.event === 'complete');
+  const pipelineState = hasError ? 'failed' : isComplete ? 'completed' : 'running';
 
   return (
-    <div className="w-full bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl animate-fade-in flex flex-col items-center">
+    <div className="w-full bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl animate-fade-in">
       
-      {pipelineState === 'failed' && (
-        <div className="w-full max-w-2xl bg-red-50 border border-red-200 text-red-800 rounded-xl p-4 mb-6 flex items-start space-x-3 shadow-sm animate-fade-in">
-          <svg className="w-6 h-6 text-red-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <h4 className="font-bold text-sm">AI Pipeline Interrupted</h4>
-            <p className="text-xs mt-1">Routing Agent encountered an external service failure.<br/>Awaiting manual retry.</p>
-          </div>
+      {/* Top Banner Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-neutral-200">
+        <div>
+          <span className="inline-flex items-center space-x-2 bg-black text-white px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-1 shadow-md">
+            {pipelineState === 'running' ? (
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+            )}
+            <span>{pipelineState === 'running' ? 'AI Assistant Processing' : 'Pipeline Execution Complete'}</span>
+          </span>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A]">Civic AI Assistant Active</h2>
         </div>
-      )}
 
-      <div className="text-center mb-8">
-        <span className="inline-flex items-center space-x-2 bg-black text-white px-4 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase mb-3 shadow-md">
-          {pipelineState === 'running' ? (
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-          ) : (
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
-          )}
-          <span>{pipelineState === 'running' ? 'AI Pipeline Active' : 'Pipeline Halted'}</span>
-        </span>
-        <h2 className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A] tracking-tight">
-          Processing via Autonomous Agents
-        </h2>
-        <p className="text-sm text-[#4A4A4A] mt-2">
-          Your complaint is being analyzed and routed by our multi-agent architecture in real-time.
-        </p>
+        <button
+          type="button"
+          onClick={() => setPanelOpen(!panelOpen)}
+          className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-[#0A0A0A] rounded-full text-xs font-bold transition-all border border-neutral-200 flex items-center space-x-1.5 self-start sm:self-auto"
+        >
+          <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+          </svg>
+          <span>{panelOpen ? 'Collapse AI Processing' : 'View AI Processing'}</span>
+        </button>
       </div>
 
-      <div className="w-full max-w-2xl space-y-4">
-        {AGENTS.map((agent, index) => {
-          let status = 'pending';
-          if (index < currentAgentIndex) status = 'completed';
-          else if (index === currentAgentIndex) {
-            status = pipelineState === 'failed' ? 'failed' : 'processing';
-          }
-
-          const isActive = status === 'processing' || status === 'failed';
+      {/* Split-Screen Layout: Left = Citizen Friendly View, Right = Live AI Engine Processing */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 pt-6 items-start">
+        
+        {/* LEFT PANEL: Citizen View (Friendly Progress Updates) */}
+        <div className="lg:col-span-6 space-y-6">
           
-          let cardClasses = 'bg-white border-neutral-100 opacity-60';
-          if (status === 'completed') cardClasses = 'bg-[#E8EEFB] border-[#C6D8F8]';
-          if (status === 'processing') cardClasses = 'bg-neutral-50 border-neutral-300 shadow-md scale-[1.02]';
-          if (status === 'failed') cardClasses = 'bg-red-50 border-red-300 shadow-md scale-[1.02]';
+          <div className="bg-[#F4F7FE] border border-[#D4E2FB] rounded-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center shrink-0 shadow-md">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-[#0A0A0A]">Assistant Status</h3>
+                <p className="text-xs text-[#2B3A4C] font-semibold">{latestHumanMsg}</p>
+              </div>
+            </div>
 
-          return (
-            <div 
-              key={agent.id} 
-              className={`flex flex-col p-4 rounded-2xl border transition-all duration-300 ${cardClasses}`}
-            >
-              <div className="flex items-center">
-                <div className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center mr-4 bg-white shadow-sm border border-neutral-200">
-                  {status === 'completed' ? (
-                    <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : status === 'processing' ? (
-                    <svg className="animate-spin w-5 h-5 text-black" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : status === 'failed' ? (
-                    <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <span className="text-xs font-bold text-neutral-400">{index + 1}</span>
-                  )}
-                </div>
+            {/* Human Progress Checklist */}
+            <div className="space-y-3 pt-3 border-t border-[#C6D8F8]">
+              {STAGES.map((st, idx) => {
+                const stepEvent = agentEvents.find(e => e.event === 'agent_step' && (e.data?.stage || '').includes(st.id.split('_')[0]));
+                const startEvent = agentEvents.find(e => e.event === 'agent_start' && (e.data?.agent_name || '').toLowerCase().includes(st.id.split('_')[0]));
                 
-                <div className="flex-1 flex justify-between items-center">
-                  <div>
-                    <h3 className={`font-bold text-sm ${status === 'completed' || status === 'processing' ? 'text-black' : status === 'failed' ? 'text-red-900' : 'text-neutral-500'}`}>
-                      {agent.name}
-                    </h3>
-                    <p className={`text-xs mt-0.5 ${status === 'failed' ? 'text-red-700' : 'text-[#4A4A4A]'}`}>
-                      {agent.desc}
-                    </p>
+                let isDone = !!stepEvent;
+                let isRunning = !isDone && !!startEvent;
+
+                return (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-2.5">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                        isDone ? 'bg-green-600 text-white' :
+                        isRunning ? 'bg-black text-white animate-pulse' : 'bg-neutral-200 text-neutral-500'
+                      }`}>
+                        {isDone ? '✓' : idx + 1}
+                      </div>
+                      <span className={`font-semibold ${isDone ? 'text-black' : isRunning ? 'text-blue-900 font-bold' : 'text-neutral-400'}`}>
+                        {isDone ? st.humanDone : st.humanLabel}
+                      </span>
+                    </div>
+
+                    {isRunning && (
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
+                        In Progress...
+                      </span>
+                    )}
                   </div>
-                  {status === 'failed' && (
-                    <span className="px-3 py-1 bg-red-600 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
-                      Routing Failed
-                    </span>
-                  )}
+                );
+              })}
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* RIGHT PANEL: Live AI Processing Node Graph (Technical View) */}
+        {panelOpen && (
+          <div className="lg:col-span-6 space-y-4 animate-fade-in">
+            <div className="bg-neutral-900 text-white rounded-3xl p-6 shadow-2xl space-y-4 border border-neutral-800">
+              
+              <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span>
+                  <h3 className="text-xs font-mono font-bold text-green-400 uppercase tracking-widest">
+                    AI Processing Graph
+                  </h3>
                 </div>
+                <span className="text-[10px] font-mono text-neutral-400">Orchestrator v2.4</span>
               </div>
 
-              {/* Terminal Logs area for active agent */}
-              {isActive && (
-                <div className="mt-4 ml-14">
-                  <div 
-                    ref={terminalRef}
-                    className="bg-[#0A0A0A] text-green-400 font-mono text-[11px] sm:text-xs p-4 rounded-xl shadow-inner h-[180px] overflow-y-auto scrollbar-hide"
-                  >
-                    {agent.logs.map((log, i) => {
-                      if (i > currentLogIndex) return null;
-                      
-                      const isCurrentLine = i === currentLogIndex;
-                      const textToShow = isCurrentLine && pipelineState !== 'failed' ? log.slice(0, typedChars) : log;
-                      const isErrorLine = log.startsWith("ERROR:") || log.startsWith("Routing process");
-                      
-                      return (
-                        <div key={i} className={`flex items-start leading-relaxed ${isErrorLine ? 'text-red-500 font-bold' : ''}`}>
-                          <span className={`${isErrorLine ? 'text-red-500' : 'text-green-600'} mr-2 shrink-0`}>➜</span>
-                          <span className="break-all">{textToShow}</span>
-                          {isCurrentLine && pipelineState === 'running' && (
-                            <span className="w-2 h-3.5 bg-green-400 inline-block align-middle ml-1 animate-pulse"></span>
-                          )}
+              {/* Animated Node Graph Stack */}
+              <div className="space-y-3">
+                {STAGES.map((st, idx) => {
+                  const stepEvent = agentEvents.find(e => e.event === 'agent_step' && (e.data?.stage || '').includes(st.id.split('_')[0]));
+                  const startEvent = agentEvents.find(e => e.event === 'agent_start' && (e.data?.agent_name || '').toLowerCase().includes(st.id.split('_')[0]));
+                  const errEvent = agentEvents.find(e => e.event === 'agent_error' && (e.data?.stage || '').includes(st.id.split('_')[0]));
+
+                  let nodeStatus = 'WAITING';
+                  if (stepEvent) nodeStatus = 'COMPLETED';
+                  else if (errEvent) nodeStatus = 'FAILED';
+                  else if (startEvent) nodeStatus = 'RUNNING';
+
+                  const snapshot = stepEvent?.data?.snapshot || startEvent?.data || {};
+                  const duration = snapshot.duration_ms ? `${(snapshot.duration_ms / 1000).toFixed(2)}s` : null;
+                  const confidence = snapshot.confidence ? `${(snapshot.confidence * 100).toFixed(0)}%` : null;
+
+                  return (
+                    <div
+                      key={st.id}
+                      className={`p-3.5 rounded-2xl border transition-all text-xs font-mono ${
+                        nodeStatus === 'COMPLETED' ? 'bg-neutral-800/80 border-green-500/50 text-white' :
+                        nodeStatus === 'RUNNING' ? 'bg-black border-blue-500 shadow-lg shadow-blue-500/20 text-white ring-1 ring-blue-500' :
+                        nodeStatus === 'FAILED' ? 'bg-red-950/50 border-red-500 text-red-300' : 'bg-neutral-950/40 border-neutral-800 text-neutral-500'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] font-bold opacity-60">0{idx + 1}</span>
+                          <span className="font-bold text-white">{st.name}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                  
-                  {status === 'failed' && (
-                    <div className="mt-4 border border-red-200 bg-white rounded-xl p-4 shadow-sm animate-fade-in">
-                      <h4 className="text-sm font-bold text-red-900 mb-2">Unable to reach the Government Department Registry.</h4>
-                      <div className="text-xs text-red-800 space-y-1">
-                        <p className="font-semibold">Reason:</p>
-                        <p>Department Registry endpoint not found.</p>
-                        <p className="font-mono bg-red-50 px-2 py-1 rounded inline-block mt-1 border border-red-100">(Error Code: DNS_PROBE_FINISHED_NXDOMAIN)</p>
+
+                        <div className="flex items-center space-x-2 text-[10px]">
+                          {confidence && (
+                            <span className="text-green-400 bg-green-950/80 px-2 py-0.5 rounded font-bold border border-green-800">
+                              {confidence} Conf.
+                            </span>
+                          )}
+                          {duration && (
+                            <span className="text-blue-300 bg-blue-950/80 px-2 py-0.5 rounded font-mono border border-blue-800">
+                              {duration}
+                            </span>
+                          )}
+                          <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                            nodeStatus === 'COMPLETED' ? 'bg-green-600 text-white' :
+                            nodeStatus === 'RUNNING' ? 'bg-blue-600 text-white animate-pulse' :
+                            nodeStatus === 'FAILED' ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-500'
+                          }`}>
+                            {nodeStatus}
+                          </span>
+                        </div>
                       </div>
-                      <div className="mt-5 flex items-center space-x-3">
-                        <button 
-                          onClick={handleRetry}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+
+                      {/* Technical Execution Logs */}
+                      {snapshot.logs && snapshot.logs.length > 0 && (
+                        <div className="mt-2 text-[10px] text-neutral-400 space-y-0.5 pt-2 border-t border-neutral-800">
+                          {snapshot.logs.slice(-2).map((l, i) => (
+                            <div key={i} className="truncate">➜ {l}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Payload Toggle */}
+                      {nodeStatus === 'COMPLETED' && snapshot.output && (
+                        <button
+                          onClick={() => setSelectedPayload(selectedPayload === st.id ? null : st.id)}
+                          className="mt-2 text-[10px] text-blue-400 hover:underline block"
                         >
-                          Retry Routing
+                          {selectedPayload === st.id ? 'Hide Structured Output' : 'View Structured Output JSON'}
                         </button>
-                        <button className="px-4 py-2 bg-white border border-red-200 hover:bg-red-50 text-red-800 text-xs font-bold rounded-lg transition-colors shadow-sm">
-                          View Diagnostic Logs
-                        </button>
-                      </div>
+                      )}
+
+                      {selectedPayload === st.id && (
+                        <pre className="mt-2 p-2.5 bg-black text-green-400 rounded-xl text-[9px] overflow-x-auto max-h-40">
+                          {JSON.stringify(snapshot.output, null, 2)}
+                        </pre>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                  );
+                })}
+              </div>
+
             </div>
-          );
-        })}
+          </div>
+        )}
+
       </div>
 
     </div>

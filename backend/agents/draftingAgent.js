@@ -16,8 +16,10 @@ Generate an official municipal complaint letter based strictly on the provided i
 Instructions:
 - Include a formal subject line.
 - Provide an official body statement.
+- Write a short professional summary of the issue.
+- Extract key entities from the incident data (landmarks, dates, exact locations).
 - Maintain formal, urgent, or directive tone.
-- Assemble the complete complaint letter in complaint_text.
+- Assemble the complete complaint letter in complaint_text (make sure to explicitly reference the SLA timeframe).
 - Set appropriate metadata parameters.
 - Do NOT hallucinate fake officer names, specific dates, or fake signatures.`
   ),
@@ -101,6 +103,8 @@ Issued by: AGENTVERSE Autonomous Civic Management System`;
     subject,
     body,
     tone: "formal",
+    professional_summary: `Report of ${data.category} at ${data.address}`,
+    extracted_entities: [data.category, data.department],
     complaint_text: complaintText,
     metadata: {
       sla_target_hours: data.slaHours,
@@ -166,6 +170,8 @@ async function draftingAgent(incident) {
   const output = {
     subject: draftResult.subject,
     body: draftResult.body,
+    professional_summary: draftResult.professional_summary,
+    extracted_entities: draftResult.extracted_entities,
     tone: draftResult.tone,
     complaint_text: draftResult.complaint_text,
     reference_number: referenceNumber,
