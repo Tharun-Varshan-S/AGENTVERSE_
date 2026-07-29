@@ -21,6 +21,12 @@ const IntakeOutputSchema = z.object({
     .describe("Extracted key entity signals from the text"),
   priority: z.enum(["low", "medium", "high", "critical"]).default("medium")
     .describe("Assessed initial priority based on public safety impact"),
+  missing_information: z.array(z.string()).default([])
+    .describe("List of missing crucial details (e.g., 'exact street number', 'photo evidence')"),
+  department_routing_recommendation: z.string().default("General")
+    .describe("AI recommended municipal department for this issue"),
+  is_duplicate_probable: z.boolean().default(false)
+    .describe("Flag if the complaint sounds like a common duplicate issue"),
   reasoning: z.string().default("Classification derived from issue category and safety impact")
     .describe("Explanation for why the classification and priority were assigned")
 });

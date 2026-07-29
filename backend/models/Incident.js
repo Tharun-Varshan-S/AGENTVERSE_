@@ -52,6 +52,7 @@ const IncidentSchema = new mongoose.Schema({
     }
   },
   tracking: {
+    tracking_id: String,
     submitted_at: Date,
     current_status: {
       type: String,
@@ -67,7 +68,36 @@ const IncidentSchema = new mongoose.Schema({
     escalated_at: Date,
     escalation_text: String,
     escalated_to: String
-  }
+  },
+  agent_logs: [{
+    agent_name: String,
+    status: {
+      type: String,
+      enum: ["waiting", "queued", "running", "completed", "failed", "retrying", "skipped"],
+      default: "waiting"
+    },
+    started_at: Date,
+    completed_at: Date,
+    duration_ms: Number,
+    confidence: Number,
+    input: mongoose.Schema.Types.Mixed,
+    output: mongoose.Schema.Types.Mixed,
+    logs: [String],
+    error: String,
+    metadata: mongoose.Schema.Types.Mixed
+  }],
+  audit_trail: [{
+    timestamp: { type: Date, default: Date.now },
+    action: String,
+    actor: String,
+    details: mongoose.Schema.Types.Mixed
+  }],
+  citizen_metadata: {
+    name: String,
+    contact: String,
+    notes: String
+  },
+  qr_code_data: String
 });
 
 module.exports = mongoose.model('Incident', IncidentSchema);

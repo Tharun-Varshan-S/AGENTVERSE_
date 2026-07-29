@@ -80,6 +80,8 @@ const app = workflow.compile({ checkpointer });
 /**
  * Main LangGraph Orchestration Entry Point with thread checkpointing & SSE progress callbacks.
  */
+const { setProgressCallback } = require('./nodes');
+
 async function runLangGraphPipeline(rawInput, onProgressCallback = null) {
   console.log("=======================================================================");
   console.log("[LangGraph Orchestrator] Starting Memory-Checkpointed StateGraph Execution...");
@@ -88,6 +90,13 @@ async function runLangGraphPipeline(rawInput, onProgressCallback = null) {
   let incident = new Incident({ status: "intake" });
   await incident.save();
   console.log(`[LangGraph Orchestrator] Created DB Incident Document: '${incident.incident_id}'`);
+
+  if (typeof onProgressCallback === 'function') {
+    setProgressCallback(onProgressCallback);
+    onProgressCallback("start", { incident_id: incident.incident_id, status: "intake" }, false);
+  } else {
+    setProgressCallback(null);
+  }
 
   const initialState = {
     incident_id: incident.incident_id,
@@ -99,10 +108,6 @@ async function runLangGraphPipeline(rawInput, onProgressCallback = null) {
   const config = {
     configurable: { thread_id: incident.incident_id }
   };
-
-  if (typeof onProgressCallback === 'function') {
-    onProgressCallback("start", { incident_id: incident.incident_id, status: "intake" }, false);
-  }
 
   let finalState;
   try {
@@ -123,20 +128,26 @@ async function runLangGraphPipeline(rawInput, onProgressCallback = null) {
     throw err;
   }
 
-  // Persist updated state back to MongoDB
-  incident.intake = finalState.intake;
-  incident.routing = finalState.routing;
-  incident.draft = finalState.draft;
-  incident.tracking = finalState.tracking;
-  incident.status = finalState.status || "submitted";
+  // Reload incident to preserve agent_logs recorded during node execution
+  const updatedIncident = await Incident.findOne({ incident_id: incident.incident_id }) || incident;
 
-  await incident.save();
+  // Persist updated state back to MongoDB
+  updatedIncident.intake = finalState.intake;
+  updatedIncident.routing = finalState.routing;
+  updatedIncident.draft = finalState.draft;
+  updatedIncident.tracking = finalState.tracking;
+  if (finalState.tracking?.qr_code_data) {
+    updatedIncident.qr_code_data = finalState.tracking.qr_code_data;
+  }
+  updatedIncident.status = finalState.status || "submitted";
+
+  await updatedIncident.save();
 
   console.log("=======================================================================");
-  console.log(`[LangGraph Orchestrator Success] Checkpointed Graph Complete for '${incident.incident_id}'`);
+  console.log(`[LangGraph Orchestrator Success] Checkpointed Graph Complete for '${updatedIncident.incident_id}'`);
   console.log("=======================================================================\n");
 
-  return incident;
+  return updatedIncident;
 }
 
 module.exports = {

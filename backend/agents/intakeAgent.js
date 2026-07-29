@@ -22,7 +22,10 @@ Instructions:
 - Estimate confidence score between 0.0 and 1.0.
 - Provide a clean, standardized summary description.
 - Extract key location mentions, urgency indicators, and keyword signals into entities.
-- Assign an initial priority (low, medium, high, critical) and explain your reasoning.`
+- Assign an initial priority (low, medium, high, critical) and explain your reasoning.
+- Detect if the complaint sounds like a probable duplicate of a known public issue.
+- Identify any missing critical information.
+- Recommend the best municipal department for routing.`
   ),
   HumanMessagePromptTemplate.fromTemplate(
     `Citizen Complaint Description:
@@ -131,6 +134,9 @@ function ruleBasedClassification(description) {
     clean_description: description,
     entities: { location_mentions: [], urgency_indicators: [], keyword_signals: [category] },
     priority: category === "pothole" || category === "water_leak" ? "high" : "medium",
+    missing_information: [],
+    department_routing_recommendation: "General Grievance Cell",
+    is_duplicate_probable: false,
     reasoning: "Rule-based keyword fallback classification"
   };
 }
@@ -194,6 +200,9 @@ async function intakeAgent(incident, rawInput = {}) {
     intent: classificationResult.intent,
     priority: classificationResult.priority,
     entities: classificationResult.entities,
+    missing_information: classificationResult.missing_information,
+    department_routing_recommendation: classificationResult.department_routing_recommendation,
+    is_duplicate_probable: classificationResult.is_duplicate_probable,
     reasoning: classificationResult.reasoning
   };
 
