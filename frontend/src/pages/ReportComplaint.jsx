@@ -18,6 +18,10 @@ const ReportComplaint = () => {
       
       {/* Header section */}
       <div className="mb-8 text-center sm:text-left space-y-1">
+        <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-2 shadow-xs">
+          <span className="w-2 h-2 rounded-full bg-black animate-pulse"></span>
+          <span>Intake & AI Routing</span>
+        </span>
         <h1 className="text-2xl sm:text-4xl font-extrabold text-[#0A0A0A] tracking-tight">
           Report a Civic Issue
         </h1>

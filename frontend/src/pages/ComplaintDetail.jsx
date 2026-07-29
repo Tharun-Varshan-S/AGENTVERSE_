@@ -93,7 +93,11 @@ const ComplaintDetail = () => {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl">
         <div>
-          <div className="flex items-center space-x-3">
+          <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase mb-2 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+            <span>Live Grievance Tracking</span>
+          </span>
+          <div className="flex items-center space-x-3 mt-1">
             <span className="text-xs font-mono font-bold bg-black text-white px-3 py-1 rounded-full shadow-xs">
               {incident.incident_id}
             </span>
@@ -136,29 +140,29 @@ const ComplaintDetail = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
           
-          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-2xl">
-            <span className="text-xs text-[#4A4A4A] block font-medium">Category</span>
+          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+            <span className="text-xs text-[#2B3A4C] block font-medium">Category</span>
             <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
               {incident.intake?.issue_category || 'N/A'}
             </span>
           </div>
 
-          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-2xl">
-            <span className="text-xs text-[#4A4A4A] block font-medium">Assigned Department</span>
+          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+            <span className="text-xs text-[#2B3A4C] block font-medium">Assigned Department</span>
             <span className="font-bold text-[#0A0A0A] text-sm block mt-1">
               {incident.routing?.department || 'Unassigned'}
             </span>
           </div>
 
-          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-2xl">
-            <span className="text-xs text-[#4A4A4A] block font-medium">Severity & SLA</span>
+          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+            <span className="text-xs text-[#2B3A4C] block font-medium">Severity & SLA</span>
             <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
               {incident.routing?.severity || 'Normal'} ({incident.routing?.sla_hours || 48}h)
             </span>
           </div>
 
-          <div className="bg-neutral-50 border border-neutral-200 p-4 rounded-2xl">
-            <span className="text-xs text-[#4A4A4A] block font-medium">Location</span>
+          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+            <span className="text-xs text-[#2B3A4C] block font-medium">Location</span>
             <span className="font-bold text-[#0A0A0A] text-sm block mt-1 truncate" title={incident.intake?.location?.address}>
               {incident.intake?.location?.address || 'N/A'}
             </span>

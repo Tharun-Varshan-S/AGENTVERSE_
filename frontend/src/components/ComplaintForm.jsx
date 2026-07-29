@@ -83,7 +83,7 @@ const ComplaintForm = ({ onSuccess }) => {
               className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border text-xs font-bold transition-all ${
                 rawInputType === type.id
                   ? 'bg-black text-white border-black shadow-md scale-[1.02]'
-                  : 'bg-neutral-50 border-neutral-200 text-[#4A4A4A] hover:border-black hover:text-[#0A0A0A]'
+                  : 'bg-[#F4F7FE] border-[#D4E2FB] text-[#2B3A4C] hover:bg-[#E8EEFB] hover:border-[#B8CEF8] hover:text-[#0A0A0A]'
               }`}
             >
               <svg className="w-5 h-5 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -18,6 +18,10 @@ const TrackStatus = () => {
         
         {/* Header */}
         <div className="text-center space-y-2">
+          <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-1 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+            <span>Citizen Lookup</span>
+          </span>
           <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center mx-auto mb-3 shadow-md">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

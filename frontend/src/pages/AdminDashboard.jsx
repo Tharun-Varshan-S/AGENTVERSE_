@@ -94,6 +94,10 @@ const AdminDashboard = () => {
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase mb-2 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+            <span>Governance Control</span>
+          </span>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-[#0A0A0A] tracking-tight">
             Municipal Admin Control Panel
           </h1>
@@ -157,7 +161,7 @@ const AdminDashboard = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-neutral-100 border-b border-neutral-200 text-[#0A0A0A] uppercase tracking-wider font-bold">
+              <thead className="bg-[#F0F4FC] border-b border-[#D4E2FB] text-[#0A0A0A] uppercase tracking-wider font-bold">
                 <tr>
                   <th className="py-4 px-4">Incident ID</th>
                   <th className="py-4 px-4">Category</th>
