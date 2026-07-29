@@ -10,6 +10,7 @@ function validateInput(incident = {}) {
   const intake = incident.intake || {};
   const description = intake.description || "Civic complaint logged requiring immediate attention.";
   const category = intake.issue_category || "other";
+  const address = intake.location?.address || "";
 
   const routing = incident.routing || {};
   const department = routing.department || "Municipal Grievance Department";
@@ -27,6 +28,7 @@ function validateInput(incident = {}) {
     incidentId,
     description,
     category,
+    address,
     department,
     departmentContact,
     severity,
@@ -42,12 +44,15 @@ function validateInput(incident = {}) {
 function deriveZonalAuthority(data) {
   const contact = (data.departmentContact || "").toLowerCase();
   const dept = (data.department || "").toLowerCase();
+  const addr = (data.address || "").toLowerCase();
 
-  // Check for ward patterns (e.g., ward1, ward2, ward3)
-  const wardMatch = contact.match(/ward\d+/i) || dept.match(/ward\d+/i);
+  // Check for ward patterns (e.g., ward1, ward2, ward3, Ward 1)
+  const wardMatch = addr.match(/ward\s*(\d+)/i) || contact.match(/ward\d+/i) || dept.match(/ward\d+/i);
   if (wardMatch) {
-    const ward = wardMatch[0].toLowerCase();
-    return `zonal-officer-${ward}@civic.gov.in`;
+    const wardNum = wardMatch[1] || wardMatch[0].replace(/\D/g, '');
+    if (wardNum) {
+      return `zonal-officer-ward${wardNum}@civic.gov.in`;
+    }
   }
 
   // Fallback zonal authority contacts based on department focus
@@ -61,7 +66,7 @@ function deriveZonalAuthority(data) {
     return "zonal-water-board-director@civic.gov.in";
   }
 
-  return "zonal-grievance-cell@civic.gov.in";
+  return "regional-officer@civic.gov.in";
 }
 
 /**
@@ -190,6 +195,17 @@ async function escalationAgent(incident = {}) {
   if (!escalationText) {
     escalationText = buildFallbackEscalationText(data, escalatedTo);
   }
+
+  return {
+    escalated: true,
+    escalated_at: new Date(),
+    escalation_text: escalationText,
+    escalated_to: escalatedTo
+  };
+}
+
+module.exports = escalationAgent;
+
 
   return {
     escalated: true,
