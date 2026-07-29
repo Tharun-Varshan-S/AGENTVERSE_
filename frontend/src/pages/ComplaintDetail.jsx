@@ -122,6 +122,7 @@ const ComplaintDetail = () => {
         escalated={escalated}
         escalationText={incident.escalation?.escalation_text}
         escalatedTo={incident.escalation?.escalated_to}
+        escalatedAt={incident.escalation?.escalated_at}
       />
 
       {/* Status Timeline */}

@@ -1,7 +1,14 @@
 import React from 'react';
 
-const EscalationBanner = ({ escalated, escalationText, escalatedTo }) => {
+const EscalationBanner = ({ escalated, escalationText, escalatedTo, escalatedAt }) => {
   if (!escalated) return null;
+
+  const formattedDate = escalatedAt
+    ? new Date(escalatedAt).toLocaleString('en-US', {
+        dateStyle: 'long',
+        timeStyle: 'short'
+      })
+    : null;
 
   return (
     <div className="bg-neutral-50 border-2 border-black rounded-3xl p-5 shadow-lg space-y-2 text-[#0A0A0A]">
@@ -17,19 +24,25 @@ const EscalationBanner = ({ escalated, escalationText, escalatedTo }) => {
           </h4>
           <p className="text-xs text-[#4A4A4A] font-medium">
             SLA target exceeded — ticket escalated to senior officer oversight.
+            {formattedDate && (
+              <span className="block font-bold text-black text-[11px] mt-0.5">
+                Escalated on {formattedDate}
+              </span>
+            )}
           </p>
         </div>
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-2xl p-4 text-xs space-y-1.5 mt-2">
+      <div className="bg-white border border-neutral-200 rounded-2xl p-4 text-xs space-y-2 mt-2">
         {escalationText && (
-          <p className="text-[#0A0A0A] font-medium">
-            <span className="font-bold">Reason:</span> {escalationText}
-          </p>
+          <div className="text-[#0A0A0A] font-medium whitespace-pre-wrap leading-relaxed">
+            <span className="font-bold block mb-1">Reason / Notice:</span>
+            {escalationText}
+          </div>
         )}
         {escalatedTo && (
-          <p className="text-[#4A4A4A]">
-            <span className="font-bold text-[#0A0A0A]">Escalated To:</span> <span className="font-mono font-bold">{escalatedTo}</span>
+          <p className="text-[#4A4A4A] pt-1 border-t border-neutral-100">
+            <span className="font-bold text-[#0A0A0A]">Escalated To:</span> <span className="font-mono font-bold text-black">{escalatedTo}</span>
           </p>
         )}
       </div>

@@ -30,46 +30,42 @@ const capabilities = [
 
 const ScrollAnimatedCapabilities = () => {
   const sectionRef = useRef(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    let animationFrameId;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { 
+        threshold: 0.15,
+        rootMargin: '0px 0px -25% 0px' // Triggers ONLY when section reaches mid-screen
+      }
+    );
 
-    const updateScroll = () => {
-      if (!sectionRef.current) return;
-      const rect = sectionRef.current.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      
-      // Calculate scroll progress from when section top enters (0.85*height) until section fills screen (0.15*height)
-      const startPoint = windowHeight * 0.85;
-      const endPoint = windowHeight * 0.15;
-      const totalDistance = startPoint - endPoint;
-      
-      const currentPos = startPoint - rect.top;
-      const rawProgress = currentPos / totalDistance;
-      const clamped = Math.min(Math.max(rawProgress, 0), 1);
-      
-      setScrollProgress(clamped);
-    };
-
-    const onScroll = () => {
-      animationFrameId = requestAnimationFrame(updateScroll);
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    updateScroll(); // Initial check
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
 
     return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (sectionRef.current) observer.unobserve(sectionRef.current);
     };
   }, []);
 
   return (
     <section ref={sectionRef} className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 relative z-10 overflow-hidden">
       
-      {/* Section Header */}
-      <div className="mb-14 text-center md:text-left space-y-2">
+      {/* Section Header - Emerges smoothly when reaching mid-screen */}
+      <div 
+        style={{
+          transform: isVisible ? 'translateY(0)' : 'translateY(45px)',
+          opacity: isVisible ? 1 : 0,
+          transition: 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s, opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s'
+        }}
+        className="mb-14 text-center md:text-left space-y-2"
+      >
         <span className="text-xs font-bold text-[#4A4A4A] uppercase tracking-widest block">
           System Architecture
         </span>
@@ -78,28 +74,23 @@ const ScrollAnimatedCapabilities = () => {
         </h2>
       </div>
 
-      {/* 2-Column Scroll-Driven Lavender Card Grid */}
+      {/* 2-Column Lavender Card Grid - Slower, silky staggered emergence */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
         {capabilities.map((cap, idx) => {
-          // Stagger card progress across 0.0 to 1.0 so all cards become visible when section fills screen
-          const start = idx * 0.18;
-          const cardProgress = Math.min(Math.max((scrollProgress - start) / 0.46, 0), 1);
-          
-          // Silky horizontal slide from right (70px -> 0px) and fade in
-          const translateX = (1 - cardProgress) * (70 + idx * 25);
-          const opacity = cardProgress;
-          const isInteractable = cardProgress > 0.6;
+          const delay = 0.35 + idx * 0.25; // Staggered delays: 0.35s, 0.60s, 0.85s, 1.10s
 
           return (
             <div
               key={cap.num}
               style={{
-                transform: `translateX(${translateX}px)`,
-                opacity: opacity,
-                transition: 'transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)'
+                transform: isVisible 
+                  ? 'translateY(var(--card-hover-lift, 0px))' 
+                  : 'translateY(50px)',
+                opacity: isVisible ? 1 : 0,
+                transition: `transform 1.3s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, opacity 1.3s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, box-shadow 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s ease`
               }}
-              className={`bg-[#E8EEFB] hover:bg-[#DEE7FA] rounded-3xl p-8 sm:p-10 shadow-sm hover:shadow-xl transition-all duration-300 ease-in-out hover:-translate-y-1 group flex flex-col justify-between ${
-                isInteractable ? 'pointer-events-auto' : 'pointer-events-none'
+              className={`bg-[#E8EEFB] hover:bg-[#DEE7FA] rounded-3xl p-8 sm:p-10 shadow-[0_4px_16px_rgba(0,0,0,0.03)] hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.09)] group flex flex-col justify-between cursor-pointer [--card-hover-lift:0px] hover:[--card-hover-lift:-8px] ${
+                isVisible ? 'pointer-events-auto' : 'pointer-events-none'
               }`}
             >
               <div className="space-y-4">
@@ -123,6 +114,121 @@ const ScrollAnimatedCapabilities = () => {
         })}
       </div>
 
+    </section>
+  );
+};
+
+const WorkflowSection = () => {
+  const sectionRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { 
+        threshold: 0.15,
+        rootMargin: '0px 0px -25% 0px' // Triggers ONLY when section reaches mid-screen
+      }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => {
+      if (sectionRef.current) observer.unobserve(sectionRef.current);
+    };
+  }, []);
+
+  const steps = [
+    {
+      step: 'STEP 01',
+      title: 'Multi-Modal Intake & Parsing',
+      description: 'We begin by ingesting your raw report—whether text, photo attachment, or voice memo—unifying disparate input sources into a structured, location-tagged complaint architecture.'
+    },
+    {
+      step: 'STEP 02',
+      title: 'AI Classification & Smart Routing',
+      description: 'Our intelligent Routing Agent categorizes issue severity, identifies the exact municipal department responsible, and automatically assigns strict SLA resolution timelines.'
+    },
+    {
+      step: 'STEP 03',
+      title: 'Formal Resolution Notice Drafting',
+      description: 'The Drafting Agent constructs an official, standardized municipal notice formatted with unique reference IDs, geo-coordinates, and compliance documentation for city officials.'
+    },
+    {
+      step: 'STEP 04',
+      title: 'Continuous Tracking & SLA Escalation',
+      description: 'Our system continuously monitors ticket progress against municipal SLAs. If resolution stalls past deadline, the Escalation Agent automatically alerts senior zonal officers.'
+    }
+  ];
+
+  return (
+    <section ref={sectionRef} className="w-full bg-[#D4E4FF] py-24 sm:py-36 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-12">
+        
+        {/* Section Heading - Emerges slowly after 200ms delay when reaching mid-screen */}
+        <div 
+          style={{
+            transform: isVisible ? 'translateY(0)' : 'translateY(50px)',
+            opacity: isVisible ? 1 : 0,
+            transition: 'transform 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.20s, opacity 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.20s'
+          }}
+          className="mb-16 sm:mb-24"
+        >
+          <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-[#0A0A0A] tracking-tight leading-[1.05]">
+            Engineered for actionable resolution
+          </h2>
+        </div>
+
+        {/* Flat Step-by-Step List - Slower, luxurious staggered emergence */}
+        <div className="space-y-0">
+          {steps.map((item, idx) => {
+            const delay = 0.45 + idx * 0.25; // Staggered delays: 0.45s, 0.70s, 0.95s, 1.20s
+            return (
+              <React.Fragment key={item.step}>
+                {idx > 0 && (
+                  <div 
+                    style={{
+                      opacity: isVisible ? 1 : 0,
+                      transition: `opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`
+                    }}
+                    className="w-full h-px bg-black/15 my-10 sm:my-14" 
+                  />
+                )}
+                <div 
+                  style={{
+                    transform: isVisible ? 'translateY(0)' : 'translateY(40px)',
+                    opacity: isVisible ? 1 : 0,
+                    transition: `transform 1.3s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s, opacity 1.3s cubic-bezier(0.16, 1, 0.3, 1) ${delay}s`
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-12 items-start py-2"
+                >
+                  {/* Left Column: STEP 01 Label */}
+                  <div className="md:col-span-3 text-xs sm:text-sm font-bold text-[#2B3A4C] uppercase tracking-widest pt-2">
+                    <span>{item.step}</span>
+                  </div>
+
+                  {/* Right Column: Title & Description */}
+                  <div className="md:col-span-9 space-y-3">
+                    <h3 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0A0A0A] tracking-tight leading-tight">
+                      {item.title}
+                    </h3>
+                    <p className="text-base sm:text-lg md:text-xl text-[#2B3A4C] font-normal leading-relaxed max-w-3xl pt-1">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+      </div>
     </section>
   );
 };
@@ -197,6 +303,9 @@ const Home = () => {
 
       {/* Capabilities Section (QuantraLogic Lavender Grid Style with Active Scroll Motion) */}
       <ScrollAnimatedCapabilities />
+
+      {/* Resolution Workflow Section (Matching Reference Periwinkle/Lavender Step Layout) */}
+      <WorkflowSection />
 
     </div>
   );

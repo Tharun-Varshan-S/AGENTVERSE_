@@ -101,6 +101,12 @@ async function runEscalation(incidentId) {
     throw new Error(`Incident not found with ID: ${incidentId}`);
   }
 
+  // Guard against double-escalation
+  if (incident.status === "escalated" || incident.escalation?.escalated) {
+    console.log(`[Escalation] Incident ${incidentId} is already escalated, skipping.`);
+    return incident;
+  }
+
   try {
     const escalationResult = await escalationAgent(incident);
     validateAgentOutput("escalationAgent", escalationResult);
