@@ -191,12 +191,15 @@ async function escalationAgent(incident = {}) {
     escalationText = buildFallbackEscalationText(data, escalatedTo);
   }
 
-  return {
+  const output = {
     escalated: true,
     escalated_at: new Date(),
     escalation_text: escalationText,
     escalated_to: escalatedTo
   };
+
+  console.log(`[EscalationAgent] Incident escalated to '${output.escalated_to}'`);
+  return output;
 }
 
 module.exports = escalationAgent;
