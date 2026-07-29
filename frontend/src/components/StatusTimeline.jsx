@@ -33,8 +33,8 @@ const StatusTimeline = ({ currentStatus }) => {
       {/* Evenly Distributed Vertical Steps List */}
       <div className="relative py-2 my-auto flex-1 flex flex-col justify-around space-y-4">
         
-        {/* Vertical Connecting Line */}
-        <div className="absolute top-4 bottom-4 left-3.5 w-0.5 bg-black/15 -z-0 rounded-full">
+        {/* Vertical Connecting Line (Centered through Circle Badges) */}
+        <div className="absolute top-6 bottom-6 left-[26px] -translate-x-1/2 w-0.5 bg-black/20 z-0 rounded-full pointer-events-none">
           <div
             className="w-full bg-black transition-all duration-500 rounded-full"
             style={{ height: `${(currentIndex / (stages.length - 1)) * 100}%` }}
