@@ -88,103 +88,110 @@ const ComplaintDetail = () => {
   const escalated = incident.escalation?.escalated || false;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
       
-      {/* Top Horizontal Row: Header Info (Left) & Resolution Progress (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      {/* 2-Column Grid Layout: Main Details (Left) & Lengthy Vertical Resolution Progress (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left Column: Incident Overview Card */}
-        <div className="lg:col-span-5 bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
-                <span>Live Grievance Tracking</span>
-              </span>
+        {/* Left Main Content Column (7 cols) */}
+        <div className="lg:col-span-7 space-y-8">
+          
+          {/* Header section */}
+          <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col justify-between space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="inline-flex items-center space-x-2 bg-[#E8EEFB] text-[#2B3A4C] border border-[#C6D8F8] px-3 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase mb-2 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+                  <span>Live Grievance Tracking</span>
+                </span>
+                
+                <div className="flex items-center space-x-3 mt-1">
+                  <span className="text-xs font-mono font-bold bg-black text-white px-3 py-1 rounded-full shadow-xs">
+                    {incident.incident_id}
+                  </span>
+                  <span className="text-xs text-[#4A4A4A] font-medium">
+                    Created: {new Date(incident.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
 
-              <span className={`inline-block px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
-                escalated
-                  ? 'bg-black text-white border-2 border-black'
-                  : 'bg-black text-white'
-              }`}>
-                {currentStatus.replace('_', ' ')}
-              </span>
+              <div className="shrink-0">
+                <span className={`inline-block px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                  escalated
+                    ? 'bg-black text-white border-2 border-black'
+                    : 'bg-black text-white'
+                }`}>
+                  {currentStatus.replace('_', ' ')}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-3 mt-2">
-              <span className="text-xs font-mono font-bold bg-black text-white px-3 py-1 rounded-full shadow-xs">
-                {incident.incident_id}
-              </span>
-              <span className="text-xs text-[#4A4A4A] font-medium">
-                Created: {new Date(incident.created_at).toLocaleDateString()}
-              </span>
-            </div>
-
-            <h1 className="text-xl font-extrabold text-[#0A0A0A] mt-3.5 capitalize leading-snug">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#0A0A0A] mt-2 capitalize leading-snug">
               {incident.intake?.description || 'Municipal Complaint Detail'}
             </h1>
           </div>
+
+          {/* Escalation Banner */}
+          <EscalationBanner
+            escalated={escalated}
+            escalationText={incident.escalation?.escalation_text}
+            escalatedTo={incident.escalation?.escalated_to}
+            escalatedAt={incident.escalation?.escalated_at}
+          />
+
+          {/* Key Details Grid */}
+          <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
+            <h3 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
+              Key Incident Details
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              
+              <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+                <span className="text-xs text-[#2B3A4C] block font-medium">Category</span>
+                <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
+                  {incident.intake?.issue_category || 'N/A'}
+                </span>
+              </div>
+
+              <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+                <span className="text-xs text-[#2B3A4C] block font-medium">Assigned Department</span>
+                <span className="font-bold text-[#0A0A0A] text-sm block mt-1">
+                  {incident.routing?.department || 'Unassigned'}
+                </span>
+              </div>
+
+              <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+                <span className="text-xs text-[#2B3A4C] block font-medium">Severity & SLA</span>
+                <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
+                  {incident.routing?.severity || 'Normal'} ({incident.routing?.sla_hours || 48}h)
+                </span>
+              </div>
+
+              <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
+                <span className="text-xs text-[#2B3A4C] block font-medium">Location</span>
+                <span className="font-bold text-[#0A0A0A] text-sm block mt-1 truncate" title={incident.intake?.location?.address}>
+                  {incident.intake?.location?.address || 'N/A'}
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Letter Preview */}
+          <LetterPreview
+            complaintText={incident.draft?.complaint_text}
+            referenceNumber={incident.draft?.reference_number}
+          />
+
         </div>
 
-        {/* Right Column: Status Timeline (Home Page Yellow Theme) */}
-        <div className="lg:col-span-7">
+        {/* Right Column: Vertical Resolution Progress Card (5 cols, Sticky) */}
+        <div className="lg:col-span-5 lg:sticky lg:top-24">
           <StatusTimeline currentStatus={currentStatus} />
         </div>
 
       </div>
-
-      {/* Escalation Banner */}
-      <EscalationBanner
-        escalated={escalated}
-        escalationText={incident.escalation?.escalation_text}
-        escalatedTo={incident.escalation?.escalated_to}
-        escalatedAt={incident.escalation?.escalated_at}
-      />
-
-      {/* Key Details Grid */}
-      <div className="bg-white border border-neutral-200/90 rounded-3xl p-6 shadow-xl space-y-4">
-        <h3 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
-          Key Incident Details
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-          
-          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
-            <span className="text-xs text-[#2B3A4C] block font-medium">Category</span>
-            <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
-              {incident.intake?.issue_category || 'N/A'}
-            </span>
-          </div>
-
-          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
-            <span className="text-xs text-[#2B3A4C] block font-medium">Assigned Department</span>
-            <span className="font-bold text-[#0A0A0A] text-sm block mt-1">
-              {incident.routing?.department || 'Unassigned'}
-            </span>
-          </div>
-
-          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
-            <span className="text-xs text-[#2B3A4C] block font-medium">Severity & SLA</span>
-            <span className="font-bold text-[#0A0A0A] capitalize text-sm block mt-1">
-              {incident.routing?.severity || 'Normal'} ({incident.routing?.sla_hours || 48}h)
-            </span>
-          </div>
-
-          <div className="bg-[#F4F7FE] border border-[#D4E2FB] hover:bg-[#E8EEFB] p-4 rounded-2xl transition-colors">
-            <span className="text-xs text-[#2B3A4C] block font-medium">Location</span>
-            <span className="font-bold text-[#0A0A0A] text-sm block mt-1 truncate" title={incident.intake?.location?.address}>
-              {incident.intake?.location?.address || 'N/A'}
-            </span>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Letter Preview */}
-      <LetterPreview
-        complaintText={incident.draft?.complaint_text}
-        referenceNumber={incident.draft?.reference_number}
-      />
 
     </div>
   );
