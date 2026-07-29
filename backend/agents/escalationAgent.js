@@ -207,12 +207,3 @@ async function escalationAgent(incident = {}) {
 module.exports = escalationAgent;
 
 
-  return {
-    escalated: true,
-    escalated_at: new Date(),
-    escalation_text: escalationText,
-    escalated_to: escalatedTo
-  };
-}
-
-module.exports = escalationAgent;
