@@ -53,7 +53,7 @@ class AgentOrchestratorEngine extends EventEmitter {
   }
 
   /**
-   * Safe execution wrapper for individual agent stages.
+   * Safe execution wrapper for individual agent stages with pacing for live UI streaming.
    */
   async executeAgentStep(incidentId, agentName, agentFn, inputData, sendEventFn = null, customLogs = []) {
     const startTime = Date.now();
@@ -78,8 +78,10 @@ class AgentOrchestratorEngine extends EventEmitter {
     if (typeof sendEventFn === 'function') {
       sendEventFn('agent_start', initialPayload);
     }
-    // Broadcast via WebSockets
     broadcastEvent('agent_start', initialPayload, incidentId);
+
+    // Give a 600ms visual pacing delay so UI users can see RUNNING state glow
+    await new Promise(resolve => setTimeout(resolve, 600));
 
     try {
       const result = await agentFn(inputData);
@@ -112,8 +114,10 @@ class AgentOrchestratorEngine extends EventEmitter {
       if (typeof sendEventFn === 'function') {
         sendEventFn('agent_step', { stage: stageName, snapshot: successPayload });
       }
-      // Broadcast via WebSockets
       broadcastEvent('agent_step', { stage: stageName, snapshot: successPayload }, incidentId);
+
+      // Pacing delay after step completion
+      await new Promise(resolve => setTimeout(resolve, 400));
 
       console.log(`[OrchestratorEngine] ✅ Agent '${agentName}' Completed (${durationMs}ms)`);
       return result;
@@ -140,7 +144,6 @@ class AgentOrchestratorEngine extends EventEmitter {
       if (typeof sendEventFn === 'function') {
         sendEventFn('agent_error', { stage: stageName, error: error.message });
       }
-      // Broadcast via WebSockets
       broadcastEvent('agent_error', { stage: stageName, error: error.message }, incidentId);
 
       console.error(`[OrchestratorEngine] ❌ Agent '${agentName}' Failed: ${error.message}`);
