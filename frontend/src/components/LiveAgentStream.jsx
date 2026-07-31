@@ -1,33 +1,9 @@
 import React from 'react';
 
-const STAGES = [
-  {
-    id: 'intake',
-    title: 'Intake Agent',
-    description: 'Multimodal LLM classification & OpenStreetMap spatial geocoding',
-    icon: '🔍'
-  },
-  {
-    id: 'routing',
-    title: 'Routing Agent',
-    description: 'LangGraph conditional branching & department SLA assignment',
-    icon: '🔀'
-  },
-  {
-    id: 'drafting',
-    title: 'Drafting Agent',
-    description: 'LLM formal municipal legal notice generation',
-    icon: '📝'
-  },
-  {
-    id: 'tracking',
-    title: 'Tracking Agent',
-    description: 'Ticket audit history initialization & status setup',
-    icon: '📌'
-  }
-];
+export default function LiveAgentStream({ events = [] }) {
+  // Show only the most recent 10 events
+  const displayEvents = events.slice(-10).reverse();
 
-export default function LiveAgentStream({ activeStage, completedStages, aiError }) {
   return (
     <div style={{
       background: '#1a1d24',
@@ -42,98 +18,100 @@ export default function LiveAgentStream({ activeStage, completedStages, aiError 
         <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: '#6366f1' }}>
           ⚡ Multi-Agent Execution Stream
         </h3>
-        <span style={{ fontSize: '0.85rem', color: aiError ? '#ef4444' : '#10b981', fontWeight: 500 }}>
-          {aiError ? '⚠️ AI Error Detected' : activeStage === 'complete' ? '✅ Workflow Complete' : '🔄 Processing Live...'}
+        <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 500 }}>
+          <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-ping mr-2"></span>
+          Live Stream
         </span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {STAGES.map((stage, idx) => {
-          const isCompleted = completedStages.includes(stage.id);
-          const isActive = activeStage === stage.id;
-          const isFailed = aiError && isActive;
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto' }}>
+        {displayEvents.length === 0 && (
+          <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+            Waiting for live events...
+          </div>
+        )}
 
-          let badgeColor = '#374151'; // Pending
-          let badgeText = 'Pending';
+        {displayEvents.map((evt, idx) => {
+          const type = evt.event_type || evt.event || 'Unknown';
+          const payload = evt.payload || evt.data || {};
+          const actor = evt.actor || payload.agent_type || payload.agent_name || 'system';
+          
+          let badgeColor = '#374151'; // Default
           let borderStyle = '1px solid #374151';
+          let icon = '🔄';
 
-          if (isCompleted) {
+          if (type.includes('Completed') || type === 'agent_step' || type === 'StateTransition') {
             badgeColor = '#065f46';
-            badgeText = 'Completed';
             borderStyle = '1px solid #10b981';
-          } else if (isFailed) {
+            icon = '✅';
+          } else if (type.includes('Failed') || type === 'agent_error' || type.includes('Denied')) {
             badgeColor = '#991b1b';
-            badgeText = 'AI Failure';
             borderStyle = '1px solid #ef4444';
-          } else if (isActive) {
+            icon = '❌';
+          } else if (type.includes('Started') || type === 'agent_start' || type.includes('Invoked')) {
             badgeColor = '#1e40af';
-            badgeText = 'Processing...';
             borderStyle = '1px solid #3b82f6';
+            icon = '⚡';
           }
 
           return (
             <div
-              key={stage.id}
+              key={evt.seq || evt.id || idx}
               style={{
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '16px',
-                padding: '14px 18px',
+                padding: '12px 16px',
                 borderRadius: '8px',
-                background: isActive ? '#1e293b' : '#0f172a',
+                background: '#0f172a',
                 border: borderStyle,
                 transition: 'all 0.3s ease'
               }}
             >
               <div style={{
-                fontSize: '1.5rem',
+                fontSize: '1.2rem',
                 lineHeight: 1,
-                padding: '8px',
-                background: '#334155',
-                borderRadius: '8px'
+                padding: '6px',
+                background: '#1e293b',
+                borderRadius: '6px'
               }}>
-                {stage.icon}
+                {icon}
               </div>
 
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: '#f8fafc' }}>
-                    {stage.title}
+                  <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#f8fafc', textTransform: 'capitalize' }}>
+                    {actor.replace(/_/g, ' ')}
                   </h4>
                   <span style={{
-                    fontSize: '0.75rem',
+                    fontSize: '0.7rem',
                     fontWeight: 600,
-                    padding: '3px 8px',
+                    padding: '2px 6px',
                     borderRadius: '12px',
                     background: badgeColor,
                     color: '#ffffff'
                   }}>
-                    {badgeText}
+                    {type}
                   </span>
                 </div>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
-                  {stage.description}
-                </p>
+                
+                <div style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {evt.workflow_id && <span style={{ fontFamily: 'monospace', background: '#334155', padding: '2px 4px', borderRadius: '4px', fontSize: '0.7rem' }}>{evt.workflow_id}</span>}
+                  
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {type === 'StateTransition' ? `Transition: ${payload.from} → ${payload.to}` : 
+                     payload.capability ? `Capability: ${payload.capability}` :
+                     payload.service ? `Service: ${payload.service}` : 
+                     payload.message ? payload.message : 
+                     JSON.stringify(payload).substring(0, 80) + '...'}
+                  </span>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
-
-      {aiError && (
-        <div style={{
-          marginTop: '20px',
-          padding: '14px 18px',
-          background: '#450a0a',
-          border: '1px solid #dc2626',
-          borderRadius: '8px',
-          color: '#fca5a5',
-          fontSize: '0.9rem'
-        }}>
-          <strong>❌ AI Engine Execution Exception:</strong>
-          <div style={{ marginTop: '4px', fontFamily: 'monospace' }}>{aiError}</div>
-        </div>
-      )}
     </div>
   );
 }
+

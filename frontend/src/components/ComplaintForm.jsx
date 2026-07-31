@@ -26,6 +26,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [agentEvents, setAgentEvents] = useState([]);
+  const [completedIncident, setCompletedIncident] = useState(null);
 
   useEffect(() => {
     if (prefilledDescription) {
@@ -54,6 +55,14 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
     setDescription(sug);
   };
 
+  const handleProceedToConfirmation = (incidentData) => {
+    setLoading(false);
+    localStorage.removeItem('civicResolveDraft_desc');
+    if (onSuccess) {
+      onSuccess(incidentData || completedIncident);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -69,6 +78,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
 
     setLoading(true);
     setAgentEvents([]);
+    setCompletedIncident(null);
 
     try {
       const formData = new FormData();
@@ -116,10 +126,8 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
 
               setAgentEvents(prev => [...prev, payload]);
 
-              if (payload.event === 'complete' && onSuccess) {
-                setLoading(false);
-                localStorage.removeItem('civicResolveDraft_desc');
-                onSuccess(payload.data);
+              if (payload.event === 'complete') {
+                setCompletedIncident(payload.data);
               } else if (payload.event === 'error') {
                 throw new Error(payload.data?.error || 'Streaming error');
               }
@@ -140,11 +148,15 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
   return (
     <div className="w-full">
       {loading ? (
-        <AIPipelineVisualizer isProcessing={loading} agentEvents={agentEvents} />
+        <AIPipelineVisualizer
+          isProcessing={loading}
+          agentEvents={agentEvents}
+          onProceed={handleProceedToConfirmation}
+        />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6 bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-xl">
           
-          {/* Header & Tag */}
+          {/* Header */}
           <div>
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#2B3A4C] bg-[#E8EEFB] border border-[#C6D8F8] px-3 py-1 rounded-full shadow-xs">
               AI-Powered Citizen Intake
@@ -153,7 +165,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             <p className="text-xs text-[#4A4A4A]">Explain your problem naturally. Our multi-agent AI system will parse, route, and draft official notices.</p>
           </div>
 
-          {/* Inline Error Banner */}
+          {/* Error Banner */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3 text-red-700 text-sm font-medium">
               <svg className="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -163,7 +175,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             </div>
           )}
 
-          {/* Title / Headline (Optional) */}
+          {/* Title */}
           <div>
             <label htmlFor="title" className="block text-xs font-bold text-[#0A0A0A] uppercase tracking-wider mb-1">
               Title / Subject Headline (Optional)
@@ -178,7 +190,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             />
           </div>
 
-          {/* Description Textarea */}
+          {/* Description */}
           <div>
             <label htmlFor="description" className="block text-xs font-bold text-[#0A0A0A] uppercase tracking-wider mb-1">
               Issue Description <span className="text-red-500">*</span>
@@ -202,7 +214,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
               </span>
             </div>
 
-            {/* Smart Suggestions Chips */}
+            {/* Smart Example Chips */}
             <div className="mt-3">
               <span className="text-[11px] font-bold text-[#4A4A4A] block mb-1.5">Smart Example Prompts:</span>
               <div className="flex flex-wrap gap-1.5">
@@ -220,7 +232,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             </div>
           </div>
 
-          {/* Category & Priority Grid */}
+          {/* Category & Priority */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="category" className="block text-xs font-bold text-[#0A0A0A] uppercase tracking-wider mb-1">
@@ -258,7 +270,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             </div>
           </div>
 
-          {/* Location Autocomplete Picker */}
+          {/* Location Picker */}
           <LocationPicker value={location} onChange={setLocation} />
 
           {/* Photo File Upload */}
@@ -280,7 +292,7 @@ const ComplaintForm = ({ onSuccess, prefilledDescription }) => {
             )}
           </div>
 
-          {/* Citizen Contact Details (Optional) */}
+          {/* Citizen Contact Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-neutral-200">
             <div>
               <label htmlFor="citizenName" className="block text-xs font-bold text-[#0A0A0A] uppercase tracking-wider mb-1">

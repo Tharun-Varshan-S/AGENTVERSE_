@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { listComplaints, advanceStatus, triggerEscalation, getAdminAnalytics, exportIncidentsCSV } from '../services/api';
 import { useCivic } from '../context/CivicContext';
+import LiveAgentStream from '../components/LiveAgentStream';
 
 const AdminDashboard = () => {
   const { complaints, setComplaints, isConnected } = useCivic();
@@ -447,6 +448,8 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
+
+          <LiveAgentStream events={useCivic().workflowEvents || []} />
         </div>
       )}
 

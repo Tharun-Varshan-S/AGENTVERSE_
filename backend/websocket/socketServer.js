@@ -35,6 +35,23 @@ function initWebSocketServer(server) {
           ws.subscriptions.add('admin');
           console.log(`[WebSocket] Client subscribed to admin channel`);
           ws.send(JSON.stringify({ event: 'subscribed', channel: 'admin' }));
+        } else if (action === 'subscribe_workflow' && payload.workflow_id) {
+          const { workflow_id, since_seq } = payload;
+          ws.subscriptions.add(`workflow:${workflow_id}`);
+          console.log(`[WebSocket] Client subscribed to workflow '${workflow_id}'`);
+          ws.send(JSON.stringify({ event: 'subscribed', workflow_id }));
+          
+          // Fetch and send replay batch
+          const WorkflowEvent = require('../models/WorkflowEvent');
+          const query = { workflow_id };
+          if (since_seq !== undefined) {
+             query.seq = { $gt: since_seq };
+          }
+          WorkflowEvent.find(query).sort({ seq: 1 }).then(events => {
+             ws.send(JSON.stringify({ event: 'replay_batch', workflow_id, data: events }));
+          }).catch(err => {
+             console.error(`[WebSocket] Failed to replay workflow events: ${err.message}`);
+          });
         } else if (action === 'ping') {
           ws.send(JSON.stringify({ event: 'pong' }));
         }
@@ -75,7 +92,7 @@ function initWebSocketServer(server) {
 /**
  * Broadcast event to all clients or specific subscriptions.
  */
-function broadcastEvent(event, data, targetIncidentId = null) {
+function broadcastEvent(event, data, targetIncidentId = null, targetWorkflowId = null) {
   if (!wss) return;
 
   const payload = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
@@ -84,9 +101,10 @@ function broadcastEvent(event, data, targetIncidentId = null) {
     if (client.readyState === WebSocket.OPEN) {
       const isSubscribedToIncident = targetIncidentId && client.subscriptions.has(`incident:${targetIncidentId}`);
       const isSubscribedToAdmin = client.subscriptions.has('admin');
+      const isSubscribedToWorkflow = targetWorkflowId && client.subscriptions.has(`workflow:${targetWorkflowId}`);
 
-      // Send if broadcast to all, or client is subscribed to this incident or admin channel
-      if (!targetIncidentId || isSubscribedToIncident || isSubscribedToAdmin) {
+      // Send if broadcast to all, or client is subscribed to this incident or admin channel or workflow
+      if ((!targetIncidentId && !targetWorkflowId) || isSubscribedToIncident || isSubscribedToAdmin || isSubscribedToWorkflow) {
         client.send(payload);
       }
     }

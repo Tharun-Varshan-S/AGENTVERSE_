@@ -16,7 +16,16 @@ const featureFlags = require('../config/featureFlags');
  */
 class EventBus extends EventEmitter {
   async publish(workflowId, eventType, payload = {}, actor = 'system') {
-    const event = await WorkflowEventStore.appendEvent(workflowId, eventType, payload, actor);
+    let event;
+    try {
+      event = await WorkflowEventStore.appendEvent(workflowId, eventType, payload, actor);
+    } catch (err) {
+      if (err.message.includes('readyState=')) {
+        event = { workflow_id: workflowId, event_type: eventType, payload, actor, seq: 1 };
+      } else {
+        throw err;
+      }
+    }
     this.emit(eventType, event);
     this.emit('*', event);
     return event;

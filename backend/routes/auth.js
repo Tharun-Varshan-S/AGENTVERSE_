@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Admin = require('../models/Admin');
 const { authenticateToken, JWT_SECRET } = require('../middleware/authMiddleware');
+const { authLimiter } = require('../middleware/rateLimiter');
+
+router.use(authLimiter);
 
 // POST /api/auth/citizen/register
 router.post('/citizen/register', async (req, res) => {
