@@ -43,8 +43,10 @@ function extractRawInput(req) {
   };
 }
 
+const { publicComplaintLimiter } = require('../middleware/rateLimiter');
+
 // POST /api/complaints (Standard REST Endpoint)
-router.post('/', (req, res, next) => {
+router.post('/', publicComplaintLimiter, (req, res, next) => {
   upload.single('photo')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     next();

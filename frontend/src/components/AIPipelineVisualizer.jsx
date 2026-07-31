@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { buildWorkflowGraph } from '../utils/workflowReducer';
 
 const STAGES = [
   { id: 'intake', humanLabel: 'Understanding your issue...', humanDone: '✓ Complaint Understood', name: 'Intake Agent' },
@@ -8,14 +9,38 @@ const STAGES = [
   { id: 'submission', humanLabel: 'Submitting complaint to civic ledger...', humanDone: '✓ Complaint Registered', name: 'Submission & Tracking Agent' }
 ];
 
-const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], onProceed = null }) => {
+const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], workflowEvents = [], onProceed = null }) => {
   const [panelOpen, setPanelOpen] = useState(true);
   const [selectedPayload, setSelectedPayload] = useState(null);
   const [typedDraft, setTypedDraft] = useState('');
   const typewriterRef = useRef(null);
 
+  // New Workflow Event logic
+  const hasWorkflow = workflowEvents && workflowEvents.length > 0;
+  const { nodes, stateByAgent } = buildWorkflowGraph(workflowEvents);
+
   // Extract events by stage
   const getStageSnapshot = (stageId) => {
+    if (hasWorkflow) {
+      // Map stageId to agent_type
+      const agentTypeMap = {
+        'intake': 'intake_agent',
+        'routing': 'routing_agent',
+        'drafting': 'drafting_agent',
+        'escalation': 'escalation_agent',
+        'submission': 'submission_&_tracking_agent'
+      };
+      const agentType = agentTypeMap[stageId];
+      const state = stateByAgent[agentType];
+      if (state) {
+        return {
+          status: state.status,
+          snapshot: { output: state.output || {} }
+        };
+      }
+      return { status: 'WAITING', snapshot: {} };
+    }
+
     const stepEvt = agentEvents.find(e => e.event === 'agent_step' && (e.data?.stage || '').toLowerCase().includes(stageId));
     const startEvt = agentEvents.find(e => e.event === 'agent_start' && (e.data?.agent_name || '').toLowerCase().includes(stageId));
     const errEvt = agentEvents.find(e => e.event === 'agent_error' && (e.data?.stage || '').toLowerCase().includes(stageId));
@@ -36,7 +61,9 @@ const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], onProceed = null
   const escalationData = getStageSnapshot('escalation').snapshot.output;
   
   const completeEvent = agentEvents.find(e => e.event === 'complete');
-  const finalIncident = completeEvent?.data;
+  // For workflow events, check if it reached resolution
+  const isCompleteWorkflow = hasWorkflow && (stateByAgent['submission_&_tracking_agent']?.status === 'COMPLETED' || nodes.some(n => n.type === 'StateTransition' && n.to === 'SUBMITTED' || n.to === 'RESOLVED' || n.to === 'ESCALATED'));
+  const finalIncident = completeEvent?.data || (hasWorkflow && stateByAgent['submission_&_tracking_agent']?.output);
 
   // ChatGPT typewriter effect for notice body
   useEffect(() => {
@@ -66,8 +93,8 @@ const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], onProceed = null
   const completedCount = STAGES.filter(st => getStageSnapshot(st.id).status === 'COMPLETED').length;
   const progressPercent = Math.min(100, Math.round((completedCount / STAGES.length) * 100));
 
-  const isComplete = !!completeEvent;
-  const hasError = agentEvents.some(e => e.event === 'agent_error' || e.event === 'error');
+  const isComplete = !!completeEvent || isCompleteWorkflow;
+  const hasError = agentEvents.some(e => e.event === 'agent_error' || e.event === 'error') || (hasWorkflow && nodes.some(n => n.type === 'Failed'));
 
   return (
     <div className="w-full bg-white border border-neutral-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 animate-fade-in">
@@ -87,6 +114,11 @@ const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], onProceed = null
             <span className="text-xs font-bold text-[#4A4A4A] bg-neutral-100 px-3 py-1 rounded-full border border-neutral-200">
               Progress: {progressPercent}%
             </span>
+            {hasWorkflow && (
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                v2 Workflow Live
+              </span>
+            )}
           </div>
           <h2 className="text-2xl font-extrabold text-[#0A0A0A] tracking-tight">👋 Intelligent Civic Assistant</h2>
         </div>
@@ -298,74 +330,173 @@ const AIPipelineVisualizer = ({ isProcessing, agentEvents = [], onProceed = null
 
               {/* Node Execution Cards */}
               <div className="space-y-3">
-                {STAGES.map((st, idx) => {
-                  const { status, snapshot } = getStageSnapshot(st.id);
-                  const duration = snapshot.duration_ms ? `${(snapshot.duration_ms / 1000).toFixed(2)}s` : null;
-                  const confidence = snapshot.confidence ? `${(snapshot.confidence * 100).toFixed(0)}%` : null;
+                {hasWorkflow ? (
+                  /* WORKFLOW EVENTS RENDERER */
+                  nodes.map((node, idx) => {
+                    const isTransition = node.type === 'StateTransition';
+                    if (isTransition) {
+                      return (
+                        <div key={node.id} className="text-center my-2 text-[10px] font-mono text-neutral-500 font-bold">
+                          ↓ STATE TRANSITION: {node.from} → <span className="text-blue-400">{node.to}</span>
+                        </div>
+                      );
+                    }
+                    
+                    const isAgent = node.type === 'AgentStarted' || node.type === 'AgentCompleted' || node.type === 'Failed';
+                    const isCapability = node.type === 'CapabilityInvoked' || node.type === 'CapabilityDenied';
+                    
+                    if (isCapability) {
+                      const denied = node.type === 'CapabilityDenied';
+                      return (
+                        <div key={node.id} className="pl-6 border-l-2 border-neutral-800 ml-4 py-1">
+                          <div className={`p-2 rounded text-[10px] font-mono border ${denied ? 'bg-red-950/30 border-red-900/50 text-red-400' : 'bg-neutral-800/40 border-neutral-700 text-neutral-300'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold flex items-center space-x-1">
+                                {denied ? <span>🚫</span> : <span>🔧</span>}
+                                <span>{denied ? 'DENIED' : 'INVOKED'}: {node.payload.capability || node.payload.service}</span>
+                              </span>
+                            </div>
+                            {denied && node.payload.reason && (
+                              <div className="mt-1 text-red-500/80">Reason: {node.payload.reason}</div>
+                            )}
+                            {!denied && node.payload.operations && (
+                              <div className="mt-1 text-neutral-500">Ops: {node.payload.operations.join(', ')}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    if (isAgent) {
+                      const state = stateByAgent[node.agentType];
+                      if (!state) return null;
+                      if (node.type !== 'AgentStarted' && state.status === 'RUNNING') return null; // Show once
 
-                  return (
-                    <div
-                      key={st.id}
-                      className={`p-3.5 rounded-2xl border transition-all text-xs font-mono ${
-                        status === 'COMPLETED' ? 'bg-neutral-800/80 border-green-500/50 text-white' :
-                        status === 'RUNNING' ? 'bg-black border-blue-500 shadow-lg shadow-blue-500/20 text-white ring-1 ring-blue-500' :
-                        status === 'FAILED' ? 'bg-red-950/50 border-red-500 text-red-300' : 'bg-neutral-950/40 border-neutral-800 text-neutral-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[10px] font-bold opacity-60">0{idx + 1}</span>
-                          <span className="font-bold text-white">{st.name}</span>
+                      // Show agent card when it starts, updates when completes
+                      if (node.type === 'AgentStarted') {
+                        return (
+                          <div
+                            key={`agent-${node.id}`}
+                            className={`p-3.5 rounded-2xl border transition-all text-xs font-mono ${
+                              state.status === 'COMPLETED' ? 'bg-neutral-800/80 border-green-500/50 text-white' :
+                              state.status === 'RUNNING' ? 'bg-black border-blue-500 shadow-lg shadow-blue-500/20 text-white ring-1 ring-blue-500' :
+                              state.status === 'FAILED' ? 'bg-red-950/50 border-red-500 text-red-300' : 'bg-neutral-950/40 border-neutral-800 text-neutral-500'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-white capitalize">{node.agentType.replace(/_/g, ' ')}</span>
+                              </div>
+
+                              <div className="flex items-center space-x-2 text-[10px]">
+                                <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                  state.status === 'COMPLETED' ? 'bg-green-600 text-white' :
+                                  state.status === 'RUNNING' ? 'bg-blue-600 text-white animate-pulse' :
+                                  state.status === 'FAILED' ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-500'
+                                }`}>
+                                  {state.status}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {state.error && (
+                              <div className="mt-2 text-[10px] text-red-400 p-2 border border-red-900 bg-red-950/30 rounded">
+                                {state.error}
+                              </div>
+                            )}
+
+                            {state.status === 'COMPLETED' && state.output && (
+                              <>
+                                <button
+                                  onClick={() => setSelectedPayload(selectedPayload === node.agentType ? null : node.agentType)}
+                                  className="mt-2 text-[10px] text-blue-400 hover:underline block"
+                                >
+                                  {selectedPayload === node.agentType ? 'Hide Structured Output' : 'View Structured Output JSON'}
+                                </button>
+                                {selectedPayload === node.agentType && (
+                                  <pre className="mt-2 p-2.5 bg-black text-green-400 rounded-xl text-[9px] overflow-x-auto max-h-40 border border-neutral-800">
+                                    {JSON.stringify(state.output, null, 2)}
+                                  </pre>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })
+                ) : (
+                  /* LEGACY AGENT EVENTS RENDERER */
+                  STAGES.map((st, idx) => {
+                    const { status, snapshot } = getStageSnapshot(st.id);
+                    const duration = snapshot.duration_ms ? `${(snapshot.duration_ms / 1000).toFixed(2)}s` : null;
+                    const confidence = snapshot.confidence ? `${(snapshot.confidence * 100).toFixed(0)}%` : null;
+
+                    return (
+                      <div
+                        key={st.id}
+                        className={`p-3.5 rounded-2xl border transition-all text-xs font-mono ${
+                          status === 'COMPLETED' ? 'bg-neutral-800/80 border-green-500/50 text-white' :
+                          status === 'RUNNING' ? 'bg-black border-blue-500 shadow-lg shadow-blue-500/20 text-white ring-1 ring-blue-500' :
+                          status === 'FAILED' ? 'bg-red-950/50 border-red-500 text-red-300' : 'bg-neutral-950/40 border-neutral-800 text-neutral-500'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-bold opacity-60">0{idx + 1}</span>
+                            <span className="font-bold text-white">{st.name}</span>
+                          </div>
+
+                          <div className="flex items-center space-x-2 text-[10px]">
+                            {confidence && (
+                              <span className="text-green-400 bg-green-950/80 px-2 py-0.5 rounded font-bold border border-green-800">
+                                {confidence} Conf.
+                              </span>
+                            )}
+                            {duration && (
+                              <span className="text-blue-300 bg-blue-950/80 px-2 py-0.5 rounded font-mono border border-blue-800">
+                                {duration}
+                              </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                              status === 'COMPLETED' ? 'bg-green-600 text-white' :
+                              status === 'RUNNING' ? 'bg-blue-600 text-white animate-pulse' :
+                              status === 'FAILED' ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-500'
+                            }`}>
+                              {status}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center space-x-2 text-[10px]">
-                          {confidence && (
-                            <span className="text-green-400 bg-green-950/80 px-2 py-0.5 rounded font-bold border border-green-800">
-                              {confidence} Conf.
-                            </span>
-                          )}
-                          {duration && (
-                            <span className="text-blue-300 bg-blue-950/80 px-2 py-0.5 rounded font-mono border border-blue-800">
-                              {duration}
-                            </span>
-                          )}
-                          <span className={`px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
-                            status === 'COMPLETED' ? 'bg-green-600 text-white' :
-                            status === 'RUNNING' ? 'bg-blue-600 text-white animate-pulse' :
-                            status === 'FAILED' ? 'bg-red-600 text-white' : 'bg-neutral-800 text-neutral-500'
-                          }`}>
-                            {status}
-                          </span>
-                        </div>
+                        {/* Technical Execution Logs */}
+                        {snapshot.logs && snapshot.logs.length > 0 && (
+                          <div className="mt-2 text-[10px] text-neutral-400 space-y-0.5 pt-2 border-t border-neutral-800">
+                            {snapshot.logs.slice(-2).map((l, i) => (
+                              <div key={i} className="truncate">➜ {l}</div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Structured Output Toggle */}
+                        {status === 'COMPLETED' && snapshot.output && (
+                          <button
+                            onClick={() => setSelectedPayload(selectedPayload === st.id ? null : st.id)}
+                            className="mt-2 text-[10px] text-blue-400 hover:underline block"
+                          >
+                            {selectedPayload === st.id ? 'Hide Structured Output' : 'View Structured Output JSON'}
+                          </button>
+                        )}
+
+                        {selectedPayload === st.id && (
+                          <pre className="mt-2 p-2.5 bg-black text-green-400 rounded-xl text-[9px] overflow-x-auto max-h-40 border border-neutral-800">
+                            {JSON.stringify(snapshot.output, null, 2)}
+                          </pre>
+                        )}
                       </div>
-
-                      {/* Technical Execution Logs */}
-                      {snapshot.logs && snapshot.logs.length > 0 && (
-                        <div className="mt-2 text-[10px] text-neutral-400 space-y-0.5 pt-2 border-t border-neutral-800">
-                          {snapshot.logs.slice(-2).map((l, i) => (
-                            <div key={i} className="truncate">➜ {l}</div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Structured Output Toggle */}
-                      {status === 'COMPLETED' && snapshot.output && (
-                        <button
-                          onClick={() => setSelectedPayload(selectedPayload === st.id ? null : st.id)}
-                          className="mt-2 text-[10px] text-blue-400 hover:underline block"
-                        >
-                          {selectedPayload === st.id ? 'Hide Structured Output' : 'View Structured Output JSON'}
-                        </button>
-                      )}
-
-                      {selectedPayload === st.id && (
-                        <pre className="mt-2 p-2.5 bg-black text-green-400 rounded-xl text-[9px] overflow-x-auto max-h-40 border border-neutral-800">
-                          {JSON.stringify(snapshot.output, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
             </div>

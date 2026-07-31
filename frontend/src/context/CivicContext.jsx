@@ -21,8 +21,10 @@ export const CivicProvider = ({ children }) => {
   const [activeIncident, setActiveIncident] = useState(null);
   const [agentEvents, setAgentEvents] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [workflowEvents, setWorkflowEvents] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef(null);
+  const reconnectAttempt = useRef(0);
 
   // Auth Methods
   const loginCitizen = async (email, password) => {
@@ -74,6 +76,7 @@ export const CivicProvider = ({ children }) => {
 
       socket.onopen = () => {
         setIsConnected(true);
+        reconnectAttempt.current = 0;
         socket.send(JSON.stringify({ action: 'subscribe_admin' }));
       };
 
@@ -92,6 +95,10 @@ export const CivicProvider = ({ children }) => {
               setActiveIncident(data);
               setComplaints(prev => [data, ...prev.filter(c => c.incident_id !== data.incident_id)]);
             }
+          } else if (evtType === 'replay_batch') {
+            setWorkflowEvents(data);
+          } else if (evtType === 'workflow_event') {
+            setWorkflowEvents(prev => [...prev, data]);
           }
         } catch (err) {
           console.warn('[CivicContext] WebSocket parse notice:', err);
@@ -100,7 +107,9 @@ export const CivicProvider = ({ children }) => {
 
       socket.onclose = () => {
         setIsConnected(false);
-        setTimeout(connectWebSocket, 3000);
+        const backoff = Math.min(1000 * Math.pow(2, reconnectAttempt.current), 30000);
+        reconnectAttempt.current += 1;
+        setTimeout(connectWebSocket, backoff);
       };
 
       socket.onerror = (err) => {
@@ -121,6 +130,12 @@ export const CivicProvider = ({ children }) => {
   const subscribeIncident = useCallback((incidentId) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ action: 'subscribe_incident', incident_id: incidentId }));
+    }
+  }, []);
+
+  const subscribeWorkflow = useCallback((workflowId) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: 'subscribe_workflow', workflow_id: workflowId }));
     }
   }, []);
 
@@ -158,9 +173,12 @@ export const CivicProvider = ({ children }) => {
         setActiveIncident,
         agentEvents,
         setAgentEvents,
+        workflowEvents,
+        setWorkflowEvents,
         analytics,
         isConnected,
         subscribeIncident,
+        subscribeWorkflow,
         refreshComplaints,
         refreshAnalytics
       }}

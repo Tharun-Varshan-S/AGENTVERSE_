@@ -3,6 +3,12 @@ const router = express.Router();
 const Incident = require('../models/Incident');
 const { runEscalation } = require('../orchestrator/pipeline');
 const { broadcastEvent } = require('../websocket/socketServer');
+const { authenticateToken, requireRole } = require('../middleware/authMiddleware');
+const { adminApiLimiter } = require('../middleware/rateLimiter');
+
+router.use(adminApiLimiter);
+router.use(authenticateToken);
+router.use(requireRole('admin'));
 
 // GET /api/admin/analytics
 router.get('/analytics', async (req, res) => {

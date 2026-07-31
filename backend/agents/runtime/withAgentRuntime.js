@@ -52,6 +52,7 @@ function withAgentRuntime(agentFn, { agentType, agentName, workflowId }) {
 
   return async function runWithRuntime(inputData) {
     const startedAt = Date.now();
+    console.log(`[AgentRuntime] Wrapper invoked for ${agentName}`);
 
     let allowlistDoc;
     try {

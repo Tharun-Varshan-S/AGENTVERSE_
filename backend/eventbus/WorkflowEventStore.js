@@ -19,7 +19,7 @@ async function appendEvent(workflowId, eventType, payload = {}, actor = 'system'
   // ALLOW_INMEMORY_FALLBACK shim doesn't cover findOneAndUpdate/create) — the
   // caller (safePublishEvent in orchestratorEngine.js) already treats any
   // rejection here as non-fatal, this just keeps that rejection cheap.
-  if (mongoose.connection.readyState !== 1) {
+  if (mongoose.connection.readyState !== 1 && process.env.ALLOW_INMEMORY_FALLBACK !== 'true') {
     throw new Error(`no active MongoDB connection (readyState=${mongoose.connection.readyState})`);
   }
 
