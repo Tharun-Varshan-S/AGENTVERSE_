@@ -1,6 +1,14 @@
 const EventEmitter = require('events');
 const Incident = require('../models/Incident');
 const { broadcastEvent } = require('../websocket/socketServer');
+const featureFlags = require('../config/featureFlags');
+const eventBus = require('../eventbus/EventBus');
+const withAgentRuntime = require('../agents/runtime/withAgentRuntime');
+
+/** Same normalization already used for stageName/WS event keys below — reused as the agent-type key for manifests/allowlists (Phase 2). */
+function toAgentType(agentName) {
+  return agentName.toLowerCase().replace(/\s+/g, '_');
+}
 
 class AgentOrchestratorEngine extends EventEmitter {
   constructor() {
@@ -80,9 +88,19 @@ class AgentOrchestratorEngine extends EventEmitter {
     }
     // Broadcast via WebSockets
     broadcastEvent('agent_start', initialPayload, incidentId);
+    // Additive (Phase 1): durable, ordered event log (no-op unless ENABLE_EVENT_BUS=true)
+    await eventBus.publishSafe(incidentId, 'AgentStarted', { agent_name: agentName, input: inputData }, agentName);
+
+    // Additive (Phase 2): Agent Runtime enrichment layer (no-op — calls agentFn
+    // directly, unchanged — unless ENABLE_AGENT_RUNTIME=true). The wrapped call
+    // still calls the exact same existing agent function; nothing about the
+    // agent's own internals is touched.
+    const runFn = featureFlags.isEnabled('ENABLE_AGENT_RUNTIME')
+      ? withAgentRuntime(agentFn, { agentType: toAgentType(agentName), agentName, workflowId: incidentId })
+      : agentFn;
 
     try {
-      const result = await agentFn(inputData);
+      const result = await runFn(inputData);
       const durationMs = Date.now() - startTime;
       const completedAt = new Date();
 
@@ -114,6 +132,13 @@ class AgentOrchestratorEngine extends EventEmitter {
       }
       // Broadcast via WebSockets
       broadcastEvent('agent_step', { stage: stageName, snapshot: successPayload }, incidentId);
+      // Additive (Phase 1): durable, ordered event log (no-op unless ENABLE_EVENT_BUS=true)
+      await eventBus.publishSafe(incidentId, 'AgentCompleted', {
+        agent_name: agentName,
+        output: result,
+        confidence,
+        duration_ms: durationMs
+      }, agentName);
 
       console.log(`[OrchestratorEngine] ✅ Agent '${agentName}' Completed (${durationMs}ms)`);
       return result;
@@ -142,6 +167,12 @@ class AgentOrchestratorEngine extends EventEmitter {
       }
       // Broadcast via WebSockets
       broadcastEvent('agent_error', { stage: stageName, error: error.message }, incidentId);
+      // Additive (Phase 1): durable, ordered event log (no-op unless ENABLE_EVENT_BUS=true)
+      await eventBus.publishSafe(incidentId, 'Failed', {
+        agent_name: agentName,
+        error: error.message,
+        duration_ms: durationMs
+      }, agentName);
 
       console.error(`[OrchestratorEngine] ❌ Agent '${agentName}' Failed: ${error.message}`);
       throw error;
