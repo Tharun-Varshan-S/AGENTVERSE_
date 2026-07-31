@@ -97,7 +97,15 @@ const IncidentSchema = new mongoose.Schema({
     contact: String,
     notes: String
   },
-  qr_code_data: String
+  qr_code_data: String,
+  // Additive (Phase 1, CivicResolve v2): optional link to the parallel
+  // Workflow/WorkflowEvent records. Null/absent for every incident created
+  // before this field existed and for any run with ENABLE_EVENT_BUS off —
+  // existing reads/writes of Incident are entirely unaffected by its presence.
+  workflow_id: {
+    type: String,
+    default: null
+  }
 });
 
 module.exports = mongoose.model('Incident', IncidentSchema);

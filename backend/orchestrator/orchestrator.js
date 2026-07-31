@@ -8,6 +8,35 @@ const escalationAgent = require('../agents/escalationAgent');
 const trackingAgent = require('../agents/trackingAgent');
 const orchestratorEngine = require('./orchestratorEngine');
 const { broadcastEvent } = require('../websocket/socketServer');
+const featureFlags = require('../config/featureFlags');
+
+// Phase 3 (CivicResolve v2): new, optional agents — each individually
+// flag-gated (see config/featureFlags.js), all off by default.
+const understandingAgent = require('../agents/understandingAgent');
+const classificationAgent = require('../agents/classificationAgent');
+const priorityAgent = require('../agents/priorityAgent');
+const policyValidationAgent = require('../agents/policyValidationAgent');
+const duplicateDetectionAgent = require('../agents/duplicateDetectionAgent');
+const qualityReviewAgent = require('../agents/qualityReviewAgent');
+
+/**
+ * Runs one of the Phase 3 optional agents through the same
+ * orchestratorEngine.executeAgentStep() path as the 5 mandatory stages
+ * (identical logging/WS/event-bus/agent-runtime instrumentation), but never
+ * lets a failure here reach the outer pipeline try/catch: these stages are
+ * additive enhancements, not requirements, so a bug or timeout in one of
+ * them must never fail a citizen's complaint submission. Returns null when
+ * the flag is off (no-op, no DB round-trip) or when the stage itself fails.
+ */
+async function runOptionalStage(flagName, incidentId, agentName, agentFn, logInput, onHumanProgressCallback, customLogs) {
+  if (!featureFlags.isEnabled(flagName)) return null;
+  try {
+    return await orchestratorEngine.executeAgentStep(incidentId, agentName, agentFn, logInput, onHumanProgressCallback, customLogs);
+  } catch (err) {
+    console.warn(`[Central Orchestrator] Optional stage '${agentName}' failed non-fatally: ${err.message}`);
+    return null;
+  }
+}
 
 /**
  * Primary Central Multi-Agent Orchestrator Engine.
@@ -62,6 +91,27 @@ async function executeOrchestrationPipeline(rawInput, onHumanProgressCallback = 
     emitHumanStep("✓ Complaint Understood", true);
 
     // -------------------------------------------------------------------
+    // OPTIONAL (Phase 3): UNDERSTANDING & CLASSIFICATION AGENTS
+    // Both off by default; each independently flag-gated; failures here
+    // never fail the citizen's submission (see runOptionalStage above).
+    // -------------------------------------------------------------------
+    const understandingResult = await runOptionalStage(
+      'ENABLE_UNDERSTANDING_AGENT', incident.incident_id, 'Understanding Agent',
+      async () => await understandingAgent(intakeResult),
+      { description: intakeResult.description, category: intakeResult.issue_category },
+      onHumanProgressCallback,
+      ['Analyzing incident type & stakeholders...', 'Assessing urgency & sentiment...']
+    );
+
+    const classificationResult = await runOptionalStage(
+      'ENABLE_CLASSIFICATION_AGENT', incident.incident_id, 'Classification Agent',
+      async () => await classificationAgent(intakeResult),
+      { description: intakeResult.description, intakeCategory: intakeResult.issue_category },
+      onHumanProgressCallback,
+      ['Generating candidate categories...', 'Ranking alternatives...']
+    );
+
+    // -------------------------------------------------------------------
     // STAGE 2: ROUTING AGENT & MUNICIPAL KNOWLEDGE BASE SEARCH
     // -------------------------------------------------------------------
     emitHumanStep("Finding responsible department...");
@@ -82,6 +132,35 @@ async function executeOrchestrationPipeline(rawInput, onHumanProgressCallback = 
     incident.status = "routed";
     await incident.save();
     emitHumanStep("✓ Department Matched", true);
+
+    // -------------------------------------------------------------------
+    // OPTIONAL (Phase 3): PRIORITY, POLICY VALIDATION & DUPLICATE DETECTION
+    // Off by default; each independently flag-gated; failures here never
+    // fail the citizen's submission (see runOptionalStage above).
+    // -------------------------------------------------------------------
+    const priorityResult = await runOptionalStage(
+      'ENABLE_PRIORITY_AGENT', incident.incident_id, 'Priority Agent',
+      async () => await priorityAgent({ intakeResult, routingResult }),
+      { category: intakeResult.issue_category, routingSeverity: routingResult.severity },
+      onHumanProgressCallback,
+      ['Scoring weighted priority signals...', 'Renormalizing for unavailable signals...']
+    );
+
+    const policyValidationResult = await runOptionalStage(
+      'ENABLE_POLICY_VALIDATION_AGENT', incident.incident_id, 'Policy Validation Agent',
+      async () => await policyValidationAgent(intakeResult),
+      { description: intakeResult.description },
+      onHumanProgressCallback,
+      ['Validating required fields...', 'Checking for PII & prompt injection...', 'Checking content-safety keywords...']
+    );
+
+    const duplicateDetectionResult = await runOptionalStage(
+      'ENABLE_DUPLICATE_DETECTION_AGENT', incident.incident_id, 'Duplicate Detection Agent',
+      async () => await duplicateDetectionAgent({ intakeResult, incidentId: incident.incident_id }),
+      { category: intakeResult.issue_category },
+      onHumanProgressCallback,
+      ['Querying same-category recent complaints...', 'Scoring signal agreement...']
+    );
 
     // -------------------------------------------------------------------
     // STAGE 3: DRAFTING AGENT (GOVERNMENT NOTICE FORMULATION)
@@ -119,6 +198,21 @@ async function executeOrchestrationPipeline(rawInput, onHumanProgressCallback = 
     incident.escalation = escalationResult;
     await incident.save();
     emitHumanStep("✓ Urgency Assessed", true);
+
+    // -------------------------------------------------------------------
+    // OPTIONAL (Phase 3): QUALITY REVIEW AGENT
+    // Off by default; failures here never fail the citizen's submission
+    // (see runOptionalStage above). Informational only in this phase — does
+    // not block submission (that requires the Workflow Engine's
+    // HUMAN_REVIEW routing, introduced in a later phase).
+    // -------------------------------------------------------------------
+    const qualityReviewResult = await runOptionalStage(
+      'ENABLE_QUALITY_REVIEW_AGENT', incident.incident_id, 'Quality Review Agent',
+      async () => await qualityReviewAgent({ intakeResult, routingResult, draftResult, policyValidationResult }),
+      { department: routingResult.department },
+      onHumanProgressCallback,
+      ['Checking completeness & consistency...', 'Checking policy, formatting & confidence...']
+    );
 
     // -------------------------------------------------------------------
     // STAGE 5 & 6: SUBMISSION SERVICE & TRACKING AGENT
